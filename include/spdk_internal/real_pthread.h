@@ -1,11 +1,14 @@
 #ifndef __REAL_PTHREAD_H__
 #define __REAL_PTHREAD_H__
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <pthread.h>
 #include <dlfcn.h>
 
-#define INLINE inline
+#define INLINE static inline
 
 #define dltrans(str) dlsym(dlopen("libpthread.so.0", RTLD_NOW), str)
 
@@ -130,6 +133,34 @@ INLINE pthread_t real_pthread_self(void) {
   pthread_t (*dlsym_pthread_self)(void);
   dlsym_pthread_self = dltrans("pthread_self");
   return dlsym_pthread_self();
+}
+
+INLINE int real_pthread_key_create(pthread_key_t *key, void (*destructor)(void*)) {
+  int (*dlsym_pthread_key_create)(pthread_key_t *key, void (*destructor)(void*));
+  dlsym_pthread_key_create = dltrans("pthread_key_create");
+  int ret = dlsym_pthread_key_create(key, destructor);
+  return ret;
+}
+
+INLINE int real_pthread_setspecific(pthread_key_t key, const void *value) {
+  int (*dlsym_pthread_setspecific)(pthread_key_t key, const void *value);
+  dlsym_pthread_setspecific = dltrans("pthread_setspecific");
+  int ret = dlsym_pthread_setspecific(key, value);
+  return ret;
+}
+
+INLINE void *real_pthread_getspecific(pthread_key_t key) {
+  void *(*dlsym_pthread_getspecific)(pthread_key_t key);
+  dlsym_pthread_getspecific = dltrans("pthread_getspecific");
+  void *ret = dlsym_pthread_getspecific(key);
+  return ret;
+}
+
+INLINE int real_pthread_key_delete(pthread_key_t key) {
+  int (*dlsym_pthread_key_delete)(pthread_key_t key);
+  dlsym_pthread_key_delete = dltrans("pthread_key_delete");
+  int ret = dlsym_pthread_key_delete(key);
+  return ret;
 }
 
 /*
