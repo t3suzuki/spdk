@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019 Mellanox Technologies LTD. All rights reserved.
@@ -262,13 +263,13 @@ spdk_nvmf_subsystem_create(struct spdk_nvmf_tgt *tgt,
 	subsystem->min_cntlid = NVMF_MIN_CNTLID;
 	subsystem->max_cntlid = NVMF_MAX_CNTLID;
 	snprintf(subsystem->subnqn, sizeof(subsystem->subnqn), "%s", nqn);
-	pthread_mutex_init(&subsystem->mutex, NULL);
+	real_pthread_mutex_init(&subsystem->mutex, NULL);
 	TAILQ_INIT(&subsystem->listeners);
 	TAILQ_INIT(&subsystem->hosts);
 	TAILQ_INIT(&subsystem->ctrlrs);
 	subsystem->used_listener_ids = spdk_bit_array_create(NVMF_MAX_LISTENERS_PER_SUBSYSTEM);
 	if (subsystem->used_listener_ids == NULL) {
-		pthread_mutex_destroy(&subsystem->mutex);
+		real_pthread_mutex_destroy(&subsystem->mutex);
 		free(subsystem);
 		return NULL;
 	}
@@ -277,7 +278,7 @@ spdk_nvmf_subsystem_create(struct spdk_nvmf_tgt *tgt,
 		subsystem->ns = calloc(num_ns, sizeof(struct spdk_nvmf_ns *));
 		if (subsystem->ns == NULL) {
 			SPDK_ERRLOG("Namespace memory allocation failed\n");
-			pthread_mutex_destroy(&subsystem->mutex);
+			real_pthread_mutex_destroy(&subsystem->mutex);
 			spdk_bit_array_free(&subsystem->used_listener_ids);
 			free(subsystem);
 			return NULL;
@@ -285,7 +286,7 @@ spdk_nvmf_subsystem_create(struct spdk_nvmf_tgt *tgt,
 		subsystem->ana_group = calloc(num_ns, sizeof(uint32_t));
 		if (subsystem->ana_group == NULL) {
 			SPDK_ERRLOG("ANA group memory allocation failed\n");
-			pthread_mutex_destroy(&subsystem->mutex);
+			real_pthread_mutex_destroy(&subsystem->mutex);
 			free(subsystem->ns);
 			spdk_bit_array_free(&subsystem->used_listener_ids);
 			free(subsystem);
@@ -386,7 +387,7 @@ _nvmf_subsystem_destroy(struct spdk_nvmf_subsystem *subsystem)
 	assert(spdk_bit_array_get(subsystem->tgt->subsystem_ids, subsystem->id) == true);
 	spdk_bit_array_clear(subsystem->tgt->subsystem_ids, subsystem->id);
 
-	pthread_mutex_destroy(&subsystem->mutex);
+	real_pthread_mutex_destroy(&subsystem->mutex);
 
 	spdk_bit_array_free(&subsystem->used_listener_ids);
 
@@ -449,7 +450,7 @@ spdk_nvmf_subsystem_destroy(struct spdk_nvmf_subsystem *subsystem, nvmf_subsyste
 
 	nvmf_subsystem_remove_all_listeners(subsystem, false);
 
-	pthread_mutex_lock(&subsystem->mutex);
+	real_pthread_mutex_lock(&subsystem->mutex);
 
 	TAILQ_FOREACH_SAFE(host, &subsystem->hosts, link, host_tmp) {
 		for (transport = spdk_nvmf_transport_get_first(subsystem->tgt); transport;
@@ -461,7 +462,7 @@ spdk_nvmf_subsystem_destroy(struct spdk_nvmf_subsystem *subsystem, nvmf_subsyste
 		nvmf_subsystem_remove_host(subsystem, host);
 	}
 
-	pthread_mutex_unlock(&subsystem->mutex);
+	real_pthread_mutex_unlock(&subsystem->mutex);
 
 	subsystem->async_destroy_cb = cpl_cb;
 	subsystem->async_destroy_cb_arg = cpl_cb_arg;
@@ -807,17 +808,17 @@ spdk_nvmf_subsystem_add_host(struct spdk_nvmf_subsystem *subsystem, const char *
 		return -EINVAL;
 	}
 
-	pthread_mutex_lock(&subsystem->mutex);
+	real_pthread_mutex_lock(&subsystem->mutex);
 
 	if (nvmf_subsystem_find_host(subsystem, hostnqn)) {
 		/* This subsystem already allows the specified host. */
-		pthread_mutex_unlock(&subsystem->mutex);
+		real_pthread_mutex_unlock(&subsystem->mutex);
 		return 0;
 	}
 
 	host = calloc(1, sizeof(*host));
 	if (!host) {
-		pthread_mutex_unlock(&subsystem->mutex);
+		real_pthread_mutex_unlock(&subsystem->mutex);
 		return -ENOMEM;
 	}
 
@@ -838,14 +839,14 @@ spdk_nvmf_subsystem_add_host(struct spdk_nvmf_subsystem *subsystem, const char *
 			if (rc) {
 				SPDK_ERRLOG("Unable to add host to %s transport\n", transport->ops->name);
 				/* Remove this host from all transports we've managed to add it to. */
-				pthread_mutex_unlock(&subsystem->mutex);
+				real_pthread_mutex_unlock(&subsystem->mutex);
 				spdk_nvmf_subsystem_remove_host(subsystem, hostnqn);
 				return rc;
 			}
 		}
 	}
 
-	pthread_mutex_unlock(&subsystem->mutex);
+	real_pthread_mutex_unlock(&subsystem->mutex);
 
 	return 0;
 }
@@ -856,11 +857,11 @@ spdk_nvmf_subsystem_remove_host(struct spdk_nvmf_subsystem *subsystem, const cha
 	struct spdk_nvmf_host *host;
 	struct spdk_nvmf_transport *transport;
 
-	pthread_mutex_lock(&subsystem->mutex);
+	real_pthread_mutex_lock(&subsystem->mutex);
 
 	host = nvmf_subsystem_find_host(subsystem, hostnqn);
 	if (host == NULL) {
-		pthread_mutex_unlock(&subsystem->mutex);
+		real_pthread_mutex_unlock(&subsystem->mutex);
 		return -ENOENT;
 	}
 
@@ -879,7 +880,7 @@ spdk_nvmf_subsystem_remove_host(struct spdk_nvmf_subsystem *subsystem, const cha
 		}
 	}
 
-	pthread_mutex_unlock(&subsystem->mutex);
+	real_pthread_mutex_unlock(&subsystem->mutex);
 
 	return 0;
 }
@@ -965,12 +966,12 @@ spdk_nvmf_subsystem_disconnect_host(struct spdk_nvmf_subsystem *subsystem,
 int
 spdk_nvmf_subsystem_set_allow_any_host(struct spdk_nvmf_subsystem *subsystem, bool allow_any_host)
 {
-	pthread_mutex_lock(&subsystem->mutex);
+	real_pthread_mutex_lock(&subsystem->mutex);
 	subsystem->flags.allow_any_host = allow_any_host;
 	if (!TAILQ_EMPTY(&subsystem->listeners)) {
 		nvmf_update_discovery_log(subsystem->tgt, NULL);
 	}
-	pthread_mutex_unlock(&subsystem->mutex);
+	real_pthread_mutex_unlock(&subsystem->mutex);
 
 	return 0;
 }
@@ -986,9 +987,9 @@ spdk_nvmf_subsystem_get_allow_any_host(const struct spdk_nvmf_subsystem *subsyst
 	 * it away to work around this. */
 	sub = (struct spdk_nvmf_subsystem *)subsystem;
 
-	pthread_mutex_lock(&sub->mutex);
+	real_pthread_mutex_lock(&sub->mutex);
 	allow_any_host = sub->flags.allow_any_host;
-	pthread_mutex_unlock(&sub->mutex);
+	real_pthread_mutex_unlock(&sub->mutex);
 
 	return allow_any_host;
 }
@@ -1002,15 +1003,15 @@ spdk_nvmf_subsystem_host_allowed(struct spdk_nvmf_subsystem *subsystem, const ch
 		return false;
 	}
 
-	pthread_mutex_lock(&subsystem->mutex);
+	real_pthread_mutex_lock(&subsystem->mutex);
 
 	if (subsystem->flags.allow_any_host) {
-		pthread_mutex_unlock(&subsystem->mutex);
+		real_pthread_mutex_unlock(&subsystem->mutex);
 		return true;
 	}
 
 	allowed =  nvmf_subsystem_find_host(subsystem, hostnqn) != NULL;
-	pthread_mutex_unlock(&subsystem->mutex);
+	real_pthread_mutex_unlock(&subsystem->mutex);
 
 	return allowed;
 }

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2020 Mellanox Technologies LTD. All rights reserved.
@@ -67,7 +68,7 @@ spdk_sock_map_insert(struct spdk_sock_map *map, int placement_id,
 	struct spdk_sock_placement_id_entry *entry;
 	int rc = 0;
 
-	pthread_mutex_lock(&map->mtx);
+	real_pthread_mutex_lock(&map->mtx);
 	STAILQ_FOREACH(entry, &map->entries, link) {
 		if (placement_id == entry->placement_id) {
 			/* Can't set group to NULL if it is already not-NULL */
@@ -98,7 +99,7 @@ spdk_sock_map_insert(struct spdk_sock_map *map, int placement_id,
 		entry->ref++;
 	}
 end:
-	pthread_mutex_unlock(&map->mtx);
+	real_pthread_mutex_unlock(&map->mtx);
 
 	return rc;
 }
@@ -108,7 +109,7 @@ spdk_sock_map_release(struct spdk_sock_map *map, int placement_id)
 {
 	struct spdk_sock_placement_id_entry *entry;
 
-	pthread_mutex_lock(&map->mtx);
+	real_pthread_mutex_lock(&map->mtx);
 	STAILQ_FOREACH(entry, &map->entries, link) {
 		if (placement_id == entry->placement_id) {
 			assert(entry->ref > 0);
@@ -121,7 +122,7 @@ spdk_sock_map_release(struct spdk_sock_map *map, int placement_id)
 		}
 	}
 
-	pthread_mutex_unlock(&map->mtx);
+	real_pthread_mutex_unlock(&map->mtx);
 }
 
 int
@@ -131,13 +132,13 @@ spdk_sock_map_lookup(struct spdk_sock_map *map, int placement_id,
 	struct spdk_sock_placement_id_entry *entry;
 
 	*group = NULL;
-	pthread_mutex_lock(&map->mtx);
+	real_pthread_mutex_lock(&map->mtx);
 	STAILQ_FOREACH(entry, &map->entries, link) {
 		if (placement_id == entry->placement_id) {
 			*group = entry->group;
 			if (*group != NULL) {
 				/* Return previously assigned sock_group */
-				pthread_mutex_unlock(&map->mtx);
+				real_pthread_mutex_unlock(&map->mtx);
 				return 0;
 			}
 			break;
@@ -146,7 +147,7 @@ spdk_sock_map_lookup(struct spdk_sock_map *map, int placement_id,
 
 	/* No entry with assigned sock_group, nor hint to use */
 	if (hint == NULL) {
-		pthread_mutex_unlock(&map->mtx);
+		real_pthread_mutex_unlock(&map->mtx);
 		return -EINVAL;
 	}
 
@@ -154,13 +155,13 @@ spdk_sock_map_lookup(struct spdk_sock_map *map, int placement_id,
 	if (entry == NULL) {
 		entry = _sock_map_entry_alloc(map, placement_id);
 		if (entry == NULL) {
-			pthread_mutex_unlock(&map->mtx);
+			real_pthread_mutex_unlock(&map->mtx);
 			return -ENOMEM;
 		}
 	}
 
 	entry->group = hint;
-	pthread_mutex_unlock(&map->mtx);
+	real_pthread_mutex_unlock(&map->mtx);
 
 	return 0;
 }
@@ -170,12 +171,12 @@ spdk_sock_map_cleanup(struct spdk_sock_map *map)
 {
 	struct spdk_sock_placement_id_entry *entry, *tmp;
 
-	pthread_mutex_lock(&map->mtx);
+	real_pthread_mutex_lock(&map->mtx);
 	STAILQ_FOREACH_SAFE(entry, &map->entries, link, tmp) {
 		STAILQ_REMOVE(&map->entries, entry, spdk_sock_placement_id_entry, link);
 		free(entry);
 	}
-	pthread_mutex_unlock(&map->mtx);
+	real_pthread_mutex_unlock(&map->mtx);
 }
 
 int
@@ -184,7 +185,7 @@ spdk_sock_map_find_free(struct spdk_sock_map *map)
 	struct spdk_sock_placement_id_entry *entry;
 	int placement_id = -1;
 
-	pthread_mutex_lock(&map->mtx);
+	real_pthread_mutex_lock(&map->mtx);
 	STAILQ_FOREACH(entry, &map->entries, link) {
 		if (entry->group == NULL) {
 			placement_id = entry->placement_id;
@@ -192,7 +193,7 @@ spdk_sock_map_find_free(struct spdk_sock_map *map)
 		}
 	}
 
-	pthread_mutex_unlock(&map->mtx);
+	real_pthread_mutex_unlock(&map->mtx);
 
 	return placement_id;
 }

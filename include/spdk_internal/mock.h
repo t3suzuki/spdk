@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -86,7 +87,7 @@
 /* declare wrapper protos (alphabetically please) here */
 DECLARE_WRAPPER(calloc, void *, (size_t nmemb, size_t size));
 
-DECLARE_WRAPPER(pthread_mutex_init, int,
+DECLARE_WRAPPER(real_pthread_mutex_init, int,
 		(pthread_mutex_t *mtx, const pthread_mutexattr_t *attr));
 
 DECLARE_WRAPPER(pthread_mutexattr_init, int,

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation.
  *   All rights reserved.
@@ -1217,7 +1218,7 @@ _reactor_schedule_thread(struct spdk_thread *thread)
 		}
 	}
 
-	pthread_mutex_lock(&g_scheduler_mtx);
+	real_pthread_mutex_lock(&g_scheduler_mtx);
 	if (core == SPDK_ENV_LCORE_ID_ANY) {
 		for (i = 0; i < spdk_env_get_core_count(); i++) {
 			if (g_next_core >= g_reactor_count) {
@@ -1234,7 +1235,7 @@ _reactor_schedule_thread(struct spdk_thread *thread)
 
 	evt = spdk_event_allocate(core, _schedule_thread, lw_thread, NULL);
 
-	pthread_mutex_unlock(&g_scheduler_mtx);
+	real_pthread_mutex_unlock(&g_scheduler_mtx);
 
 	assert(evt != NULL);
 	if (evt == NULL) {
@@ -1354,14 +1355,14 @@ spdk_for_each_reactor(spdk_event_fn fn, void *arg1, void *arg2, spdk_event_fn cp
 	 * leaks. We use a mutex here to protect a boolean flag that will ensure
 	 * we don't start any more operations once we've started shutting down.
 	 */
-	pthread_mutex_lock(&g_stopping_reactors_mtx);
+	real_pthread_mutex_lock(&g_stopping_reactors_mtx);
 	if (g_stopping_reactors) {
-		pthread_mutex_unlock(&g_stopping_reactors_mtx);
+		real_pthread_mutex_unlock(&g_stopping_reactors_mtx);
 		return;
 	} else if (cpl == _reactors_stop) {
 		g_stopping_reactors = true;
 	}
-	pthread_mutex_unlock(&g_stopping_reactors_mtx);
+	real_pthread_mutex_unlock(&g_stopping_reactors_mtx);
 
 	cr = calloc(1, sizeof(*cr));
 	if (!cr) {

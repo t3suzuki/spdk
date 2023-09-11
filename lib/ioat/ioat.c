@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation.
  *   All rights reserved.
@@ -542,7 +543,7 @@ spdk_ioat_probe(void *cb_ctx, spdk_ioat_probe_cb probe_cb, spdk_ioat_attach_cb a
 	int rc;
 	struct ioat_enum_ctx enum_ctx;
 
-	pthread_mutex_lock(&g_ioat_driver.lock);
+	real_pthread_mutex_lock(&g_ioat_driver.lock);
 
 	enum_ctx.probe_cb = probe_cb;
 	enum_ctx.attach_cb = attach_cb;
@@ -550,7 +551,7 @@ spdk_ioat_probe(void *cb_ctx, spdk_ioat_probe_cb probe_cb, spdk_ioat_attach_cb a
 
 	rc = spdk_pci_enumerate(spdk_pci_ioat_get_driver(), ioat_enum_cb, &enum_ctx);
 
-	pthread_mutex_unlock(&g_ioat_driver.lock);
+	real_pthread_mutex_unlock(&g_ioat_driver.lock);
 
 	return rc;
 }
@@ -563,9 +564,9 @@ spdk_ioat_detach(struct spdk_ioat_chan *ioat)
 	/* ioat should be in the free list (not registered to a thread)
 	 * when calling ioat_detach().
 	 */
-	pthread_mutex_lock(&driver->lock);
+	real_pthread_mutex_lock(&driver->lock);
 	TAILQ_REMOVE(&driver->attached_chans, ioat, tailq);
-	pthread_mutex_unlock(&driver->lock);
+	real_pthread_mutex_unlock(&driver->lock);
 
 	ioat_channel_destruct(ioat);
 	free(ioat);

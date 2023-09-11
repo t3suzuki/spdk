@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  */
@@ -69,9 +70,9 @@ spdk_memory_domain_create(struct spdk_memory_domain **_domain, enum spdk_dma_dev
 
 	domain->type = type;
 
-	pthread_mutex_lock(&g_dma_mutex);
+	real_pthread_mutex_lock(&g_dma_mutex);
 	TAILQ_INSERT_TAIL(&g_dma_memory_domains, domain, link);
-	pthread_mutex_unlock(&g_dma_mutex);
+	real_pthread_mutex_unlock(&g_dma_mutex);
 
 	*_domain = domain;
 
@@ -156,9 +157,9 @@ spdk_memory_domain_destroy(struct spdk_memory_domain *domain)
 		return;
 	}
 
-	pthread_mutex_lock(&g_dma_mutex);
+	real_pthread_mutex_lock(&g_dma_mutex);
 	TAILQ_REMOVE(&g_dma_memory_domains, domain, link);
-	pthread_mutex_unlock(&g_dma_mutex);
+	real_pthread_mutex_unlock(&g_dma_mutex);
 
 	free(domain->ctx);
 	free(domain->id);
@@ -237,20 +238,20 @@ spdk_memory_domain_get_first(const char *id)
 	struct spdk_memory_domain *domain;
 
 	if (!id) {
-		pthread_mutex_lock(&g_dma_mutex);
+		real_pthread_mutex_lock(&g_dma_mutex);
 		domain = TAILQ_FIRST(&g_dma_memory_domains);
-		pthread_mutex_unlock(&g_dma_mutex);
+		real_pthread_mutex_unlock(&g_dma_mutex);
 
 		return domain;
 	}
 
-	pthread_mutex_lock(&g_dma_mutex);
+	real_pthread_mutex_lock(&g_dma_mutex);
 	TAILQ_FOREACH(domain, &g_dma_memory_domains, link) {
 		if (!strcmp(domain->id, id)) {
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_dma_mutex);
+	real_pthread_mutex_unlock(&g_dma_mutex);
 
 	return domain;
 }
@@ -264,21 +265,21 @@ spdk_memory_domain_get_next(struct spdk_memory_domain *prev, const char *id)
 		return NULL;
 	}
 
-	pthread_mutex_lock(&g_dma_mutex);
+	real_pthread_mutex_lock(&g_dma_mutex);
 	domain = TAILQ_NEXT(prev, link);
-	pthread_mutex_unlock(&g_dma_mutex);
+	real_pthread_mutex_unlock(&g_dma_mutex);
 
 	if (!id || !domain) {
 		return domain;
 	}
 
-	pthread_mutex_lock(&g_dma_mutex);
+	real_pthread_mutex_lock(&g_dma_mutex);
 	TAILQ_FOREACH_FROM(domain, &g_dma_memory_domains, link) {
 		if (!strcmp(domain->id, id)) {
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_dma_mutex);
+	real_pthread_mutex_unlock(&g_dma_mutex);
 
 	return domain;
 }

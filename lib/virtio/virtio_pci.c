@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2010-2014 Intel Corporation. All rights reserved.
  *   All rights reserved.
@@ -118,15 +119,15 @@ virtio_pci_dev_get_by_addr(struct spdk_pci_addr *traddr)
 	struct virtio_hw *hw;
 	struct spdk_pci_addr addr;
 
-	pthread_mutex_lock(&g_hw_mutex);
+	real_pthread_mutex_lock(&g_hw_mutex);
 	TAILQ_FOREACH(hw, &g_virtio_hws, tailq) {
 		addr = spdk_pci_device_get_addr(hw->pci_dev);
 		if (!spdk_pci_addr_compare(&addr, traddr)) {
-			pthread_mutex_unlock(&g_hw_mutex);
+			real_pthread_mutex_unlock(&g_hw_mutex);
 			return hw;
 		}
 	}
-	pthread_mutex_unlock(&g_hw_mutex);
+	real_pthread_mutex_unlock(&g_hw_mutex);
 
 	return NULL;
 }
@@ -178,17 +179,17 @@ virtio_pci_dev_event_process(int fd, uint16_t device_id)
 	}
 
 	/* VFIO remove handler */
-	pthread_mutex_lock(&g_hw_mutex);
+	real_pthread_mutex_lock(&g_hw_mutex);
 	TAILQ_FOREACH_SAFE(hw, &g_virtio_hws, tailq, tmp) {
 		if (spdk_pci_device_is_removed(hw->pci_dev) && !hw->is_removing) {
 			vdev_name = virtio_pci_dev_check(hw, device_id);
 			if (vdev_name != NULL) {
-				pthread_mutex_unlock(&g_hw_mutex);
+				real_pthread_mutex_unlock(&g_hw_mutex);
 				return vdev_name;
 			}
 		}
 	}
-	pthread_mutex_unlock(&g_hw_mutex);
+	real_pthread_mutex_unlock(&g_hw_mutex);
 
 	return NULL;
 }
@@ -352,9 +353,9 @@ modern_destruct_dev(struct virtio_dev *vdev)
 	struct spdk_pci_device *pci_dev;
 
 	if (hw != NULL) {
-		pthread_mutex_lock(&g_hw_mutex);
+		real_pthread_mutex_lock(&g_hw_mutex);
 		TAILQ_REMOVE(&g_virtio_hws, hw, tailq);
-		pthread_mutex_unlock(&g_hw_mutex);
+		real_pthread_mutex_unlock(&g_hw_mutex);
 		pci_dev = hw->pci_dev;
 		free_virtio_hw(hw);
 		if (pci_dev) {
@@ -683,9 +684,9 @@ virtio_pci_dev_probe(struct spdk_pci_device *pci_dev, struct virtio_pci_probe_ct
 		g_sigset = true;
 	}
 
-	pthread_mutex_lock(&g_hw_mutex);
+	real_pthread_mutex_lock(&g_hw_mutex);
 	TAILQ_INSERT_TAIL(&g_virtio_hws, hw, tailq);
-	pthread_mutex_unlock(&g_hw_mutex);
+	real_pthread_mutex_unlock(&g_hw_mutex);
 
 	return 0;
 }

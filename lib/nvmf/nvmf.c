@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2018-2019, 2021 Mellanox Technologies LTD. All rights reserved.
@@ -128,10 +129,10 @@ nvmf_tgt_destroy_poll_group(void *io_device, void *ctx_buf)
 
 	SPDK_DTRACE_PROBE1_TICKS(nvmf_destroy_poll_group, spdk_thread_get_id(group->thread));
 
-	pthread_mutex_lock(&tgt->mutex);
+	real_pthread_mutex_lock(&tgt->mutex);
 	TAILQ_REMOVE(&tgt->poll_groups, group, link);
 	tgt->num_poll_groups--;
-	pthread_mutex_unlock(&tgt->mutex);
+	real_pthread_mutex_unlock(&tgt->mutex);
 
 	assert(!(tgt->state == NVMF_TGT_PAUSING || tgt->state == NVMF_TGT_RESUMING));
 	nvmf_tgt_cleanup_poll_group(group);
@@ -178,7 +179,7 @@ nvmf_tgt_create_poll_group(void *io_device, void *ctx_buf)
 	TAILQ_INIT(&group->tgroups);
 	TAILQ_INIT(&group->qpairs);
 	group->thread = thread;
-	pthread_mutex_init(&group->mutex, NULL);
+	real_pthread_mutex_init(&group->mutex, NULL);
 
 	group->poller = SPDK_POLLER_REGISTER(nvmf_poll_group_poll, group, 0);
 
@@ -208,10 +209,10 @@ nvmf_tgt_create_poll_group(void *io_device, void *ctx_buf)
 		}
 	}
 
-	pthread_mutex_lock(&tgt->mutex);
+	real_pthread_mutex_lock(&tgt->mutex);
 	tgt->num_poll_groups++;
 	TAILQ_INSERT_TAIL(&tgt->poll_groups, group, link);
-	pthread_mutex_unlock(&tgt->mutex);
+	real_pthread_mutex_unlock(&tgt->mutex);
 
 	return 0;
 }
@@ -320,7 +321,7 @@ spdk_nvmf_tgt_create(struct spdk_nvmf_target_opts *opts)
 
 	RB_INIT(&tgt->subsystems);
 
-	pthread_mutex_init(&tgt->mutex, NULL);
+	real_pthread_mutex_init(&tgt->mutex, NULL);
 
 	spdk_io_device_register(tgt,
 				nvmf_tgt_create_poll_group,
@@ -349,7 +350,7 @@ _nvmf_tgt_destroy_next_transport(void *ctx)
 		spdk_nvmf_tgt_destroy_done_fn *destroy_cb_fn = tgt->destroy_cb_fn;
 		void *destroy_cb_arg = tgt->destroy_cb_arg;
 
-		pthread_mutex_destroy(&tgt->mutex);
+		real_pthread_mutex_destroy(&tgt->mutex);
 		free(tgt);
 
 		if (destroy_cb_fn) {
@@ -1016,9 +1017,9 @@ spdk_nvmf_tgt_new_qpair(struct spdk_nvmf_tgt *tgt, struct spdk_nvmf_qpair *qpair
 	ctx->qpair = qpair;
 	ctx->group = group;
 
-	pthread_mutex_lock(&group->mutex);
+	real_pthread_mutex_lock(&group->mutex);
 	group->current_unassociated_qpairs++;
-	pthread_mutex_unlock(&group->mutex);
+	real_pthread_mutex_unlock(&group->mutex);
 
 	spdk_thread_send_msg(group->thread, _nvmf_poll_group_add, ctx);
 }
@@ -1203,9 +1204,9 @@ _nvmf_qpair_destroy(void *ctx, int status)
 			qpair->group->stat.current_io_qpairs--;
 		}
 	} else {
-		pthread_mutex_lock(&qpair->group->mutex);
+		real_pthread_mutex_lock(&qpair->group->mutex);
 		qpair->group->current_unassociated_qpairs--;
-		pthread_mutex_unlock(&qpair->group->mutex);
+		real_pthread_mutex_unlock(&qpair->group->mutex);
 	}
 
 	if (ctrlr) {

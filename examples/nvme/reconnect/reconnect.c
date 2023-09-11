@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation. All rights reserved.
  *   Copyright (c) 2020 Mellanox Technologies LTD. All rights reserved.
@@ -1093,7 +1094,7 @@ main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	rc = pthread_create(&thread_id, NULL, &nvme_poll_ctrlrs, NULL);
+	rc = real_pthread_create(&thread_id, NULL, &nvme_poll_ctrlrs, NULL);
 	if (rc != 0) {
 		fprintf(stderr, "Unable to spawn a thread to poll admin queues.\n");
 		goto cleanup;
@@ -1125,7 +1126,7 @@ main(int argc, char **argv)
 
 cleanup:
 	if (thread_id && pthread_cancel(thread_id) == 0) {
-		pthread_join(thread_id, NULL);
+		real_pthread_join(thread_id, NULL);
 	}
 	unregister_trids();
 	unregister_namespaces();

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   All rights reserved.
@@ -125,7 +126,7 @@ __attribute__((constructor)) init_execution_context(void)
 	exec_context_mutex = malloc(count * sizeof(exec_context_mutex[0]));
 	ENV_BUG_ON(exec_context_mutex == NULL);
 	for (i = 0; i < count; i++) {
-		ENV_BUG_ON(pthread_mutex_init(&exec_context_mutex[i], NULL));
+		ENV_BUG_ON(real_pthread_mutex_init(&exec_context_mutex[i], NULL));
 	}
 }
 
@@ -139,7 +140,7 @@ __attribute__((destructor)) deinit_execution_context(void)
 	ENV_BUG_ON(exec_context_mutex == NULL);
 
 	for (i = 0; i < count; i++) {
-		ENV_BUG_ON(pthread_mutex_destroy(&exec_context_mutex[i]));
+		ENV_BUG_ON(real_pthread_mutex_destroy(&exec_context_mutex[i]));
 	}
 	free(exec_context_mutex);
 }
@@ -157,7 +158,7 @@ env_get_execution_context(void)
 	cpu = sched_getcpu();
 	cpu = (cpu == -1) ?  0 : cpu;
 
-	ENV_BUG_ON(pthread_mutex_lock(&exec_context_mutex[cpu]));
+	ENV_BUG_ON(real_pthread_mutex_lock(&exec_context_mutex[cpu]));
 
 	return cpu;
 }
@@ -165,7 +166,7 @@ env_get_execution_context(void)
 void
 env_put_execution_context(unsigned ctx)
 {
-	pthread_mutex_unlock(&exec_context_mutex[ctx]);
+	real_pthread_mutex_unlock(&exec_context_mutex[ctx]);
 }
 
 unsigned

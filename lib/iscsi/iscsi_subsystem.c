@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -569,12 +570,12 @@ iscsi_set_discovery_auth(bool disable_chap, bool require_chap, bool mutual_chap,
 		return -EINVAL;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	g_iscsi.disable_chap = disable_chap;
 	g_iscsi.require_chap = require_chap;
 	g_iscsi.mutual_chap = mutual_chap;
 	g_iscsi.chap_group = chap_group;
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	return 0;
 }
@@ -870,11 +871,11 @@ iscsi_chap_get_authinfo(struct iscsi_chap_auth *auth, const char *authuser,
 		memset(auth->msecret, 0, sizeof(auth->msecret));
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	_secret = iscsi_find_auth_secret(authuser, ag_tag);
 	if (_secret == NULL) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		SPDK_ERRLOG("CHAP secret is not found: user:%s, tag:%d\n",
 			    authuser, ag_tag);
@@ -889,7 +890,7 @@ iscsi_chap_get_authinfo(struct iscsi_chap_auth *auth, const char *authuser,
 		memcpy(auth->msecret, _secret->msecret, sizeof(auth->msecret));
 	}
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return 0;
 }
 
@@ -1179,7 +1180,7 @@ _iscsi_fini_dev_unreg(struct spdk_io_channel_iter *i, int status)
 	free(g_iscsi.authfile);
 	free(g_iscsi.nodebase);
 
-	pthread_mutex_destroy(&g_iscsi.mutex);
+	real_pthread_mutex_destroy(&g_iscsi.mutex);
 	if (g_init_thread != NULL) {
 		/* g_init_thread is set just after the io_device is
 		 * registered, so we can use it to determine if it
@@ -1201,9 +1202,9 @@ _iscsi_fini_thread(struct spdk_io_channel_iter *i)
 	ch = spdk_io_channel_iter_get_channel(i);
 	pg = spdk_io_channel_get_ctx(ch);
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_REMOVE(&g_iscsi.poll_group_head, pg, link);
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	spdk_put_io_channel(ch);
 

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   All rights reserved.
@@ -39,7 +40,7 @@ spdk_notify_type_register(const char *type)
 		return NULL;
 	}
 
-	pthread_mutex_lock(&g_events_lock);
+	real_pthread_mutex_lock(&g_events_lock);
 	TAILQ_FOREACH(it, &g_notify_types, tailq) {
 		if (strcmp(type, it->name) == 0) {
 			SPDK_NOTICELOG("Notification type '%s' already registered.\n", type);
@@ -56,7 +57,7 @@ spdk_notify_type_register(const char *type)
 	TAILQ_INSERT_TAIL(&g_notify_types, it, tailq);
 
 out:
-	pthread_mutex_unlock(&g_events_lock);
+	real_pthread_mutex_unlock(&g_events_lock);
 	return it;
 }
 
@@ -72,13 +73,13 @@ spdk_notify_foreach_type(spdk_notify_foreach_type_cb cb, void *ctx)
 {
 	struct spdk_notify_type *it;
 
-	pthread_mutex_lock(&g_events_lock);
+	real_pthread_mutex_lock(&g_events_lock);
 	TAILQ_FOREACH(it, &g_notify_types, tailq) {
 		if (cb(it, ctx)) {
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_events_lock);
+	real_pthread_mutex_unlock(&g_events_lock);
 }
 
 uint64_t
@@ -87,14 +88,14 @@ spdk_notify_send(const char *type, const char *ctx)
 	uint64_t head;
 	struct spdk_notify_event *ev;
 
-	pthread_mutex_lock(&g_events_lock);
+	real_pthread_mutex_lock(&g_events_lock);
 	head = g_events_head;
 	g_events_head++;
 
 	ev = &g_events[head % SPDK_NOTIFY_MAX_EVENTS];
 	spdk_strcpy_pad(ev->type, type, sizeof(ev->type), '\0');
 	spdk_strcpy_pad(ev->ctx, ctx, sizeof(ev->ctx), '\0');
-	pthread_mutex_unlock(&g_events_lock);
+	real_pthread_mutex_unlock(&g_events_lock);
 
 	return head;
 }
@@ -105,7 +106,7 @@ spdk_notify_foreach_event(uint64_t start_idx, uint64_t max,
 {
 	uint64_t i;
 
-	pthread_mutex_lock(&g_events_lock);
+	real_pthread_mutex_lock(&g_events_lock);
 
 	if (g_events_head > SPDK_NOTIFY_MAX_EVENTS && start_idx < g_events_head - SPDK_NOTIFY_MAX_EVENTS) {
 		start_idx = g_events_head - SPDK_NOTIFY_MAX_EVENTS;
@@ -116,7 +117,7 @@ spdk_notify_foreach_event(uint64_t start_idx, uint64_t max,
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_events_lock);
+	real_pthread_mutex_unlock(&g_events_lock);
 
 	return i;
 }

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -955,7 +956,7 @@ nbd_start_complete(struct spdk_nbd_start_ctx *ctx)
 	}
 
 	ctx->nbd->has_nbd_pthread = true;
-	rc = pthread_create(&tid, NULL, nbd_start_kernel, ctx->nbd);
+	rc = real_pthread_create(&tid, NULL, nbd_start_kernel, ctx->nbd);
 	if (rc != 0) {
 		ctx->nbd->has_nbd_pthread = false;
 		SPDK_ERRLOG("could not create thread: %s\n", spdk_strerror(rc));

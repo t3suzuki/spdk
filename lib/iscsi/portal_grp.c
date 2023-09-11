@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -106,16 +107,16 @@ iscsi_portal_create(const char *host, const char *port)
 	p->group = NULL; /* set at a later time by caller */
 	p->acceptor_poller = NULL;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	tmp = iscsi_portal_find_by_addr(host, port);
 	if (tmp != NULL) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 		SPDK_ERRLOG("portal (%s, %s) already exists\n", host, port);
 		goto error_out;
 	}
 
 	TAILQ_INSERT_TAIL(&g_iscsi.portal_head, p, g_tailq);
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	return p;
 
@@ -132,9 +133,9 @@ iscsi_portal_destroy(struct spdk_iscsi_portal *p)
 
 	SPDK_DEBUGLOG(iscsi, "iscsi_portal_destroy\n");
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_REMOVE(&g_iscsi.portal_head, p, g_tailq);
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	free(p);
 
@@ -248,12 +249,12 @@ iscsi_portal_grp_create(int tag, bool is_private)
 	pg->tag = tag;
 	pg->is_private = is_private;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	pg->disable_chap = g_iscsi.disable_chap;
 	pg->require_chap = g_iscsi.require_chap;
 	pg->mutual_chap = g_iscsi.mutual_chap;
 	pg->chap_group = g_iscsi.chap_group;
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	TAILQ_INIT(&pg->head);
 
@@ -284,13 +285,13 @@ iscsi_portal_grp_register(struct spdk_iscsi_portal_grp *pg)
 
 	assert(pg != NULL);
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	tmp = iscsi_portal_grp_find_by_tag(pg->tag);
 	if (tmp == NULL) {
 		TAILQ_INSERT_TAIL(&g_iscsi.pg_head, pg, tailq);
 		rc = 0;
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return rc;
 }
 
@@ -358,15 +359,15 @@ iscsi_portal_grps_destroy(void)
 	struct spdk_iscsi_portal_grp *pg;
 
 	SPDK_DEBUGLOG(iscsi, "iscsi_portal_grps_destroy\n");
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	while (!TAILQ_EMPTY(&g_iscsi.pg_head)) {
 		pg = TAILQ_FIRST(&g_iscsi.pg_head);
 		TAILQ_REMOVE(&g_iscsi.pg_head, pg, tailq);
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 		iscsi_portal_grp_destroy(pg);
-		pthread_mutex_lock(&g_iscsi.mutex);
+		real_pthread_mutex_lock(&g_iscsi.mutex);
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 }
 
 int
@@ -414,11 +415,11 @@ iscsi_portal_grp_close_all(void)
 	struct spdk_iscsi_portal_grp *pg;
 
 	SPDK_DEBUGLOG(iscsi, "iscsi_portal_grp_close_all\n");
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_FOREACH(pg, &g_iscsi.pg_head, tailq) {
 		iscsi_portal_grp_close(pg);
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 }
 
 struct spdk_iscsi_portal_grp *
@@ -426,15 +427,15 @@ iscsi_portal_grp_unregister(int tag)
 {
 	struct spdk_iscsi_portal_grp *pg;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_FOREACH(pg, &g_iscsi.pg_head, tailq) {
 		if (pg->tag == tag) {
 			TAILQ_REMOVE(&g_iscsi.pg_head, pg, tailq);
-			pthread_mutex_unlock(&g_iscsi.mutex);
+			real_pthread_mutex_unlock(&g_iscsi.mutex);
 			return pg;
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return NULL;
 }
 

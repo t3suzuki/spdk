@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   All rights reserved.
@@ -232,10 +233,10 @@ spdk_idxd_get_channel(struct spdk_idxd_device *idxd)
 	STAILQ_INIT(&chan->ops_outstanding);
 
 	/* Assign WQ, portal */
-	pthread_mutex_lock(&idxd->num_channels_lock);
+	real_pthread_mutex_lock(&idxd->num_channels_lock);
 	if (idxd->num_channels == idxd->chan_per_device) {
 		/* too many channels sharing this device */
-		pthread_mutex_unlock(&idxd->num_channels_lock);
+		real_pthread_mutex_unlock(&idxd->num_channels_lock);
 		SPDK_ERRLOG("Too many channels sharing this device\n");
 		goto error;
 	}
@@ -245,7 +246,7 @@ spdk_idxd_get_channel(struct spdk_idxd_device *idxd)
 	chan->portal_offset = (idxd->num_channels * PORTAL_STRIDE) & PORTAL_MASK;
 	idxd->num_channels++;
 
-	pthread_mutex_unlock(&idxd->num_channels_lock);
+	real_pthread_mutex_unlock(&idxd->num_channels_lock);
 
 	/* Allocate descriptors and completions */
 	num_descriptors = idxd->total_wq_size / idxd->chan_per_device;
@@ -311,10 +312,10 @@ spdk_idxd_put_channel(struct spdk_idxd_io_channel *chan)
 		idxd_batch_cancel(chan, -ECANCELED);
 	}
 
-	pthread_mutex_lock(&chan->idxd->num_channels_lock);
+	real_pthread_mutex_lock(&chan->idxd->num_channels_lock);
 	assert(chan->idxd->num_channels > 0);
 	chan->idxd->num_channels--;
-	pthread_mutex_unlock(&chan->idxd->num_channels_lock);
+	real_pthread_mutex_unlock(&chan->idxd->num_channels_lock);
 
 	spdk_free(chan->ops_base);
 	spdk_free(chan->desc_base);

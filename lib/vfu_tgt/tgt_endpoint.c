@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2022 Intel Corporation.
  *   All rights reserved.
@@ -32,14 +33,14 @@ tgt_get_pci_device_ops(const char *device_type_name)
 	struct tgt_pci_device_ops *pci_ops, *tmp;
 	bool exist = false;
 
-	pthread_mutex_lock(&g_endpoint_lock);
+	real_pthread_mutex_lock(&g_endpoint_lock);
 	TAILQ_FOREACH_SAFE(pci_ops, &g_pci_device_ops, link, tmp) {
 		if (!strncmp(device_type_name, pci_ops->ops.name, SPDK_VFU_MAX_NAME_LEN)) {
 			exist = true;
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_endpoint_lock);
+	real_pthread_mutex_unlock(&g_endpoint_lock);
 
 	if (exist) {
 		return &pci_ops->ops;
@@ -64,9 +65,9 @@ spdk_vfu_register_endpoint_ops(struct spdk_vfu_endpoint_ops *ops)
 	}
 	pci_ops->ops = *ops;
 
-	pthread_mutex_lock(&g_endpoint_lock);
+	real_pthread_mutex_lock(&g_endpoint_lock);
 	TAILQ_INSERT_TAIL(&g_pci_device_ops, pci_ops, link);
-	pthread_mutex_unlock(&g_endpoint_lock);
+	real_pthread_mutex_unlock(&g_endpoint_lock);
 
 	return 0;
 }
@@ -107,14 +108,14 @@ spdk_vfu_get_endpoint_by_name(const char *name)
 	struct spdk_vfu_endpoint *endpoint, *tmp;
 	bool exist = false;
 
-	pthread_mutex_lock(&g_endpoint_lock);
+	real_pthread_mutex_lock(&g_endpoint_lock);
 	TAILQ_FOREACH_SAFE(endpoint, &g_endpoint, link, tmp) {
 		if (!strncmp(name, endpoint->name, SPDK_VFU_MAX_NAME_LEN)) {
 			exist = true;
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_endpoint_lock);
+	real_pthread_mutex_unlock(&g_endpoint_lock);
 
 	if (exist) {
 		return endpoint;
@@ -628,9 +629,9 @@ spdk_vfu_create_endpoint(const char *endpoint_name, const char *cpumask_str,
 		return -EFAULT;
 	}
 
-	pthread_mutex_lock(&g_endpoint_lock);
+	real_pthread_mutex_lock(&g_endpoint_lock);
 	TAILQ_INSERT_TAIL(&g_endpoint, endpoint, link);
-	pthread_mutex_unlock(&g_endpoint_lock);
+	real_pthread_mutex_unlock(&g_endpoint_lock);
 
 	spdk_thread_send_msg(endpoint->thread, tgt_endpoint_start_thread, endpoint);
 
@@ -650,9 +651,9 @@ spdk_vfu_delete_endpoint(const char *endpoint_name)
 
 	SPDK_NOTICELOG("Destruct endpoint %s\n", endpoint_name);
 
-	pthread_mutex_lock(&g_endpoint_lock);
+	real_pthread_mutex_lock(&g_endpoint_lock);
 	TAILQ_REMOVE(&g_endpoint, endpoint, link);
-	pthread_mutex_unlock(&g_endpoint_lock);
+	real_pthread_mutex_unlock(&g_endpoint_lock);
 	spdk_thread_send_msg(endpoint->thread, tgt_endpoint_thread_exit, endpoint);
 
 	return 0;
@@ -770,7 +771,7 @@ spdk_vfu_fini(spdk_vfu_fini_cb fini_cb)
 	struct spdk_vfu_endpoint *endpoint, *tmp;
 	struct tgt_pci_device_ops *ops, *ops_tmp;
 
-	pthread_mutex_lock(&g_endpoint_lock);
+	real_pthread_mutex_lock(&g_endpoint_lock);
 	TAILQ_FOREACH_SAFE(ops, &g_pci_device_ops, link, ops_tmp) {
 		TAILQ_REMOVE(&g_pci_device_ops, ops, link);
 		free(ops);
@@ -780,7 +781,7 @@ spdk_vfu_fini(spdk_vfu_fini_cb fini_cb)
 		TAILQ_REMOVE(&g_endpoint, endpoint, link);
 		spdk_thread_send_msg(endpoint->thread, tgt_endpoint_thread_exit, endpoint);
 	}
-	pthread_mutex_unlock(&g_endpoint_lock);
+	real_pthread_mutex_unlock(&g_endpoint_lock);
 
 	fini_cb();
 }

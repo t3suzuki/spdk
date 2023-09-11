@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -135,31 +136,31 @@ spdk_fio_sync_run_oat(void (*msg_fn)(void *), struct spdk_fio_oat_ctx *ctx)
 {
 	assert(!spdk_thread_is_app_thread(NULL));
 
-	pthread_mutex_init(&ctx->mutex, NULL);
-	pthread_cond_init(&ctx->cond, NULL);
-	pthread_mutex_lock(&ctx->mutex);
+	real_pthread_mutex_init(&ctx->mutex, NULL);
+	real_pthread_cond_init(&ctx->cond, NULL);
+	real_pthread_mutex_lock(&ctx->mutex);
 
 	spdk_thread_send_msg(spdk_thread_get_app_thread(), msg_fn, ctx);
 
 	/* Wake up the poll loop in spdk_init_thread_poll() */
-	pthread_mutex_lock(&g_init_mtx);
-	pthread_cond_signal(&g_init_cond);
-	pthread_mutex_unlock(&g_init_mtx);
+	real_pthread_mutex_lock(&g_init_mtx);
+	real_pthread_cond_signal(&g_init_cond);
+	real_pthread_mutex_unlock(&g_init_mtx);
 
 	/* Wait for msg_fn() to call spdk_fio_wake_oat_waiter() */
-	pthread_cond_wait(&ctx->cond, &ctx->mutex);
-	pthread_mutex_unlock(&ctx->mutex);
+	real_pthread_cond_wait(&ctx->cond, &ctx->mutex);
+	real_pthread_mutex_unlock(&ctx->mutex);
 
-	pthread_mutex_destroy(&ctx->mutex);
-	pthread_cond_destroy(&ctx->cond);
+	real_pthread_mutex_destroy(&ctx->mutex);
+	real_pthread_cond_destroy(&ctx->cond);
 }
 
 static void
 spdk_fio_wake_oat_waiter(struct spdk_fio_oat_ctx *ctx)
 {
-	pthread_mutex_lock(&ctx->mutex);
-	pthread_cond_signal(&ctx->cond);
-	pthread_mutex_unlock(&ctx->mutex);
+	real_pthread_mutex_lock(&ctx->mutex);
+	real_pthread_cond_signal(&ctx->cond);
+	real_pthread_mutex_unlock(&ctx->mutex);
 }
 
 static int
@@ -174,9 +175,9 @@ spdk_fio_schedule_thread(struct spdk_thread *thread)
 
 	fio_thread = spdk_thread_get_ctx(thread);
 
-	pthread_mutex_lock(&g_init_mtx);
+	real_pthread_mutex_lock(&g_init_mtx);
 	TAILQ_INSERT_TAIL(&g_threads, fio_thread, link);
-	pthread_mutex_unlock(&g_init_mtx);
+	real_pthread_mutex_unlock(&g_init_mtx);
 
 	return 0;
 }
@@ -230,9 +231,9 @@ spdk_fio_cleanup_thread(struct spdk_fio_thread *fio_thread)
 {
 	spdk_thread_send_msg(fio_thread->thread, spdk_fio_bdev_close_targets, fio_thread);
 
-	pthread_mutex_lock(&g_init_mtx);
+	real_pthread_mutex_lock(&g_init_mtx);
 	TAILQ_INSERT_TAIL(&g_threads, fio_thread, link);
-	pthread_mutex_unlock(&g_init_mtx);
+	real_pthread_mutex_unlock(&g_init_mtx);
 }
 
 static void
@@ -393,15 +394,15 @@ spdk_init_thread_poll(void *arg)
 	while (spdk_fio_poll_thread(fio_thread) > 0) {};
 
 	/* Set condition variable */
-	pthread_mutex_lock(&g_init_mtx);
-	pthread_cond_signal(&g_init_cond);
+	real_pthread_mutex_lock(&g_init_mtx);
+	real_pthread_cond_signal(&g_init_cond);
 
-	pthread_mutex_unlock(&g_init_mtx);
+	real_pthread_mutex_unlock(&g_init_mtx);
 
 	while (g_poll_loop) {
 		spdk_fio_poll_thread(fio_thread);
 
-		pthread_mutex_lock(&g_init_mtx);
+		real_pthread_mutex_lock(&g_init_mtx);
 		if (!TAILQ_EMPTY(&g_threads)) {
 			TAILQ_FOREACH_SAFE(thread, &g_threads, link, tmp) {
 				if (spdk_thread_is_exited(thread->thread)) {
@@ -414,7 +415,7 @@ spdk_init_thread_poll(void *arg)
 			}
 
 			/* If there are exiting threads to poll, don't sleep. */
-			pthread_mutex_unlock(&g_init_mtx);
+			real_pthread_mutex_unlock(&g_init_mtx);
 			continue;
 		}
 
@@ -422,8 +423,8 @@ spdk_init_thread_poll(void *arg)
 		clock_gettime(CLOCK_MONOTONIC, &ts);
 		spdk_fio_calc_timeout(fio_thread, &ts);
 
-		rc = pthread_cond_timedwait(&g_init_cond, &g_init_mtx, &ts);
-		pthread_mutex_unlock(&g_init_mtx);
+		rc = real_pthread_cond_timedwait(&g_init_cond, &g_init_mtx, &ts);
+		real_pthread_mutex_unlock(&g_init_mtx);
 
 		if (rc != 0 && rc != ETIMEDOUT) {
 			break;
@@ -487,7 +488,7 @@ spdk_fio_init_env(struct thread_data *td)
 		goto out;
 	}
 
-	if (pthread_cond_init(&g_init_cond, &attr)) {
+	if (real_pthread_cond_init(&g_init_cond, &attr)) {
 		SPDK_ERRLOG("Unable to initialize condition variable\n");
 		goto out;
 	}
@@ -496,15 +497,15 @@ spdk_fio_init_env(struct thread_data *td)
 	 * Spawn a thread to handle initialization operations and to poll things
 	 * like the admin queues periodically.
 	 */
-	rc = pthread_create(&g_init_thread_id, NULL, &spdk_init_thread_poll, td->eo);
+	rc = real_pthread_create(&g_init_thread_id, NULL, &spdk_init_thread_poll, td->eo);
 	if (rc != 0) {
 		SPDK_ERRLOG("Unable to spawn thread to poll admin queue. It won't be polled.\n");
 	}
 
 	/* Wait for background thread to advance past the initialization */
-	pthread_mutex_lock(&g_init_mtx);
-	pthread_cond_wait(&g_init_cond, &g_init_mtx);
-	pthread_mutex_unlock(&g_init_mtx);
+	real_pthread_mutex_lock(&g_init_mtx);
+	real_pthread_cond_wait(&g_init_cond, &g_init_mtx);
+	real_pthread_mutex_unlock(&g_init_mtx);
 out:
 	pthread_condattr_destroy(&attr);
 	return rc;
@@ -536,17 +537,17 @@ spdk_fio_init_spdk_env(struct thread_data *td)
 {
 	static pthread_mutex_t setup_lock = PTHREAD_MUTEX_INITIALIZER;
 
-	pthread_mutex_lock(&setup_lock);
+	real_pthread_mutex_lock(&setup_lock);
 	if (!g_spdk_env_initialized) {
 		if (spdk_fio_init_env(td)) {
-			pthread_mutex_unlock(&setup_lock);
+			real_pthread_mutex_unlock(&setup_lock);
 			SPDK_ERRLOG("failed to initialize\n");
 			return -1;
 		}
 
 		g_spdk_env_initialized = true;
 	}
-	pthread_mutex_unlock(&setup_lock);
+	real_pthread_mutex_unlock(&setup_lock);
 
 	return 0;
 }
@@ -1482,11 +1483,11 @@ spdk_fio_register(void)
 static void
 spdk_fio_finish_env(void)
 {
-	pthread_mutex_lock(&g_init_mtx);
+	real_pthread_mutex_lock(&g_init_mtx);
 	g_poll_loop = false;
-	pthread_cond_signal(&g_init_cond);
-	pthread_mutex_unlock(&g_init_mtx);
-	pthread_join(g_init_thread_id, NULL);
+	real_pthread_cond_signal(&g_init_cond);
+	real_pthread_mutex_unlock(&g_init_mtx);
+	real_pthread_join(g_init_thread_id, NULL);
 
 	spdk_thread_lib_fini();
 	spdk_env_fini();

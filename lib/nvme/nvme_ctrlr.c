@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019-2021 Mellanox Technologies LTD. All rights reserved.
@@ -4073,7 +4074,7 @@ nvme_robust_mutex_init_recursive_shared(pthread_mutex_t *mtx)
 	    pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) ||
 	    pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED) ||
 #endif
-	    pthread_mutex_init(mtx, &attr)) {
+	    real_pthread_mutex_init(mtx, &attr)) {
 		rc = -1;
 	}
 	pthread_mutexattr_destroy(&attr);
@@ -4170,7 +4171,7 @@ nvme_ctrlr_init_cap(struct spdk_nvme_ctrlr *ctrlr)
 void
 nvme_ctrlr_destruct_finish(struct spdk_nvme_ctrlr *ctrlr)
 {
-	pthread_mutex_destroy(&ctrlr->ctrlr_lock);
+	real_pthread_mutex_destroy(&ctrlr->ctrlr_lock);
 }
 
 void

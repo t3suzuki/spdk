@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation.
  *   All rights reserved.
@@ -134,11 +135,11 @@ detach_rte(struct spdk_pci_device *dev)
 		return;
 	}
 
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	dev->internal.attached = false;
 	/* prevent the hotremove notification from removing this device */
 	dev->internal.pending_removal = true;
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 
 	rte_eal_alarm_set(1, detach_rte_cb, rte_dev);
 
@@ -146,9 +147,9 @@ detach_rte(struct spdk_pci_device *dev)
 	for (i = 2000; i > 0; i--) {
 
 		spdk_delay_us(1000);
-		pthread_mutex_lock(&g_pci_mutex);
+		real_pthread_mutex_lock(&g_pci_mutex);
 		removed = dev->internal.removed;
-		pthread_mutex_unlock(&g_pci_mutex);
+		real_pthread_mutex_unlock(&g_pci_mutex);
 
 		if (removed) {
 			break;
@@ -166,9 +167,9 @@ detach_rte(struct spdk_pci_device *dev)
 	/* the device could have been finally removed, so just check
 	 * it again.
 	 */
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	removed = dev->internal.removed;
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 	if (!removed) {
 		SPDK_ERRLOG("Timeout waiting for DPDK to remove PCI device %s.\n",
 			    dpdk_pci_device_get_name(rte_dev));
@@ -229,7 +230,7 @@ pci_device_rte_dev_event(const char *device_name,
 		/* Nothing to do here yet. */
 		break;
 	case RTE_DEV_EVENT_REMOVE:
-		pthread_mutex_lock(&g_pci_mutex);
+		real_pthread_mutex_lock(&g_pci_mutex);
 		TAILQ_FOREACH(dev, &g_pci_devices, internal.tailq) {
 			struct rte_pci_device *rte_dev = dev->dev_handle;
 
@@ -248,7 +249,7 @@ pci_device_rte_dev_event(const char *device_name,
 				break;
 			}
 		}
-		pthread_mutex_unlock(&g_pci_mutex);
+		real_pthread_mutex_unlock(&g_pci_mutex);
 
 		if (dev != NULL && can_detach) {
 			/* if device is not attached we can remove it right away.
@@ -273,7 +274,7 @@ cleanup_pci_devices(void)
 {
 	struct spdk_pci_device *dev, *tmp;
 
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	/* cleanup removed devices */
 	TAILQ_FOREACH_SAFE(dev, &g_pci_devices, internal.tailq, tmp) {
 		if (!dev->internal.removed) {
@@ -291,7 +292,7 @@ cleanup_pci_devices(void)
 		TAILQ_INSERT_TAIL(&g_pci_devices, dev, internal.tailq);
 		vtophys_pci_device_added(dev->dev_handle);
 	}
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 }
 
 static int scan_pci_bus(bool delay_init);
@@ -409,9 +410,9 @@ pci_device_init(struct rte_pci_driver *_drv,
 		dev->internal.attached = true;
 	}
 
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	TAILQ_INSERT_TAIL(&g_pci_hotplugged_devices, dev, internal.tailq);
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 	return 0;
 }
 
@@ -453,7 +454,7 @@ pci_device_fini(struct rte_pci_device *_dev)
 {
 	struct spdk_pci_device *dev;
 
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	TAILQ_FOREACH(dev, &g_pci_devices, internal.tailq) {
 		if (dev->dev_handle == _dev) {
 			break;
@@ -462,7 +463,7 @@ pci_device_fini(struct rte_pci_device *_dev)
 
 	if (dev == NULL || dev->internal.attached) {
 		/* The device might be still referenced somewhere in SPDK. */
-		pthread_mutex_unlock(&g_pci_mutex);
+		real_pthread_mutex_unlock(&g_pci_mutex);
 		return -EBUSY;
 	}
 
@@ -478,7 +479,7 @@ pci_device_fini(struct rte_pci_device *_dev)
 	 * #2456 for additional details.
 	 */
 	dev->internal.removed = true;
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 	return 0;
 
 }
@@ -618,9 +619,9 @@ spdk_pci_device_attach(struct spdk_pci_driver *driver,
 	}
 
 	if (dev != NULL && dev->internal.driver == driver) {
-		pthread_mutex_lock(&g_pci_mutex);
+		real_pthread_mutex_lock(&g_pci_mutex);
 		if (dev->internal.attached || dev->internal.pending_removal) {
-			pthread_mutex_unlock(&g_pci_mutex);
+			real_pthread_mutex_unlock(&g_pci_mutex);
 			return -1;
 		}
 
@@ -628,7 +629,7 @@ spdk_pci_device_attach(struct spdk_pci_driver *driver,
 		if (rc == 0) {
 			dev->internal.attached = true;
 		}
-		pthread_mutex_unlock(&g_pci_mutex);
+		real_pthread_mutex_unlock(&g_pci_mutex);
 		return rc;
 	}
 
@@ -688,7 +689,7 @@ spdk_pci_enumerate(struct spdk_pci_driver *driver,
 
 	cleanup_pci_devices();
 
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	TAILQ_FOREACH(dev, &g_pci_devices, internal.tailq) {
 		if (dev->internal.attached ||
 		    dev->internal.driver != driver ||
@@ -700,11 +701,11 @@ spdk_pci_enumerate(struct spdk_pci_driver *driver,
 		if (rc == 0) {
 			dev->internal.attached = true;
 		} else if (rc < 0) {
-			pthread_mutex_unlock(&g_pci_mutex);
+			real_pthread_mutex_unlock(&g_pci_mutex);
 			return -1;
 		}
 	}
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 
 	if (scan_pci_bus(true) != 0) {
 		return -1;
@@ -731,11 +732,11 @@ spdk_pci_for_each_device(void *ctx, void (*fn)(void *ctx, struct spdk_pci_device
 {
 	struct spdk_pci_device *dev, *tmp;
 
-	pthread_mutex_lock(&g_pci_mutex);
+	real_pthread_mutex_lock(&g_pci_mutex);
 	TAILQ_FOREACH_SAFE(dev, &g_pci_devices, internal.tailq, tmp) {
 		fn(ctx, dev);
 	}
-	pthread_mutex_unlock(&g_pci_mutex);
+	real_pthread_mutex_unlock(&g_pci_mutex);
 }
 
 int

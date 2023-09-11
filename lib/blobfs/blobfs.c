@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -289,25 +290,25 @@ __stop_cache_pool_mgmt(void *ctx)
 static void
 initialize_global_cache(void)
 {
-	pthread_mutex_lock(&g_cache_init_lock);
+	real_pthread_mutex_lock(&g_cache_init_lock);
 	if (g_fs_count == 0) {
 		g_cache_pool_thread = spdk_thread_create("cache_pool_mgmt", NULL);
 		assert(g_cache_pool_thread != NULL);
 		spdk_thread_send_msg(g_cache_pool_thread, __start_cache_pool_mgmt, NULL);
 	}
 	g_fs_count++;
-	pthread_mutex_unlock(&g_cache_init_lock);
+	real_pthread_mutex_unlock(&g_cache_init_lock);
 }
 
 static void
 free_global_cache(void)
 {
-	pthread_mutex_lock(&g_cache_init_lock);
+	real_pthread_mutex_lock(&g_cache_init_lock);
 	g_fs_count--;
 	if (g_fs_count == 0) {
 		spdk_thread_send_msg(g_cache_pool_thread, __stop_cache_pool_mgmt, NULL);
 	}
-	pthread_mutex_unlock(&g_cache_init_lock);
+	real_pthread_mutex_unlock(&g_cache_init_lock);
 }
 
 static uint64_t

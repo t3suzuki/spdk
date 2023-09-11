@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -114,7 +115,7 @@ bdev_rbd_put_cluster(rados_t **cluster)
 		return;
 	}
 
-	pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
 	STAILQ_FOREACH(entry, &g_map_bdev_rbd_cluster, link) {
 		if (*cluster != &entry->cluster) {
 			continue;
@@ -123,11 +124,11 @@ bdev_rbd_put_cluster(rados_t **cluster)
 		assert(entry->ref > 0);
 		entry->ref--;
 		*cluster = NULL;
-		pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+		real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 		return;
 	}
 
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 	SPDK_ERRLOG("Cannot find the entry for cluster=%p\n", cluster);
 }
 
@@ -277,17 +278,17 @@ bdev_rbd_get_cluster(const char *cluster_name, rados_t **cluster)
 		return -1;
 	}
 
-	pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
 	STAILQ_FOREACH(entry, &g_map_bdev_rbd_cluster, link) {
 		if (strcmp(cluster_name, entry->name) == 0) {
 			entry->ref++;
 			*cluster = &entry->cluster;
-			pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+			real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 			return 0;
 		}
 	}
 
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 	return -1;
 }
 
@@ -810,7 +811,7 @@ bdev_rbd_cluster_dump_entry(const char *cluster_name, struct spdk_json_write_ctx
 {
 	struct bdev_rbd_cluster *entry;
 
-	pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
 	STAILQ_FOREACH(entry, &g_map_bdev_rbd_cluster, link) {
 		if (strcmp(cluster_name, entry->name)) {
 			continue;
@@ -836,11 +837,11 @@ bdev_rbd_cluster_dump_entry(const char *cluster_name, struct spdk_json_write_ctx
 			spdk_json_write_named_string(w, "key_file", entry->key_file);
 		}
 
-		pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+		real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 		return;
 	}
 
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 }
 
 static int
@@ -960,10 +961,10 @@ bdev_rbd_get_clusters_info(struct spdk_jsonrpc_request *request, const char *nam
 	struct bdev_rbd_cluster *entry;
 	struct spdk_json_write_ctx *w;
 
-	pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
 
 	if (STAILQ_EMPTY(&g_map_bdev_rbd_cluster)) {
-		pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+		real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 		return -ENOENT;
 	}
 
@@ -975,12 +976,12 @@ bdev_rbd_get_clusters_info(struct spdk_jsonrpc_request *request, const char *nam
 				dump_single_cluster_entry(entry, w);
 				spdk_jsonrpc_end_result(request, w);
 
-				pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+				real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 				return 0;
 			}
 		}
 
-		pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+		real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 		return -ENOENT;
 	}
 
@@ -991,7 +992,7 @@ bdev_rbd_get_clusters_info(struct spdk_jsonrpc_request *request, const char *nam
 	}
 	spdk_json_write_array_end(w);
 	spdk_jsonrpc_end_result(request, w);
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 
 	return 0;
 }
@@ -1044,11 +1045,11 @@ rbd_register_cluster(const char *name, const char *user_id, const char *const *c
 	struct spdk_cpuset rbd_core_mask = {};
 	int rc;
 
-	pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
 	STAILQ_FOREACH(entry, &g_map_bdev_rbd_cluster, link) {
 		if (strcmp(name, entry->name) == 0) {
 			SPDK_ERRLOG("Cluster name=%s already exists\n", name);
-			pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+			real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 			return -1;
 		}
 	}
@@ -1056,7 +1057,7 @@ rbd_register_cluster(const char *name, const char *user_id, const char *const *c
 	entry = calloc(1, sizeof(*entry));
 	if (!entry) {
 		SPDK_ERRLOG("Cannot allocate an entry for name=%s\n", name);
-		pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+		real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 		return -1;
 	}
 
@@ -1166,13 +1167,13 @@ rbd_register_cluster(const char *name, const char *user_id, const char *const *c
 	}
 
 	STAILQ_INSERT_TAIL(&g_map_bdev_rbd_cluster, entry, link);
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 
 	return 0;
 
 err_handle:
 	bdev_rbd_cluster_free(entry);
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 	return -1;
 }
 
@@ -1186,7 +1187,7 @@ bdev_rbd_unregister_cluster(const char *name)
 		return -1;
 	}
 
-	pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_lock(&g_map_bdev_rbd_cluster_mutex);
 	STAILQ_FOREACH(entry, &g_map_bdev_rbd_cluster, link) {
 		if (strcmp(name, entry->name) == 0) {
 			if (entry->ref == 0) {
@@ -1199,12 +1200,12 @@ bdev_rbd_unregister_cluster(const char *name)
 				rc = -1;
 			}
 
-			pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+			real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 			return rc;
 		}
 	}
 
-	pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
+	real_pthread_mutex_unlock(&g_map_bdev_rbd_cluster_mutex);
 
 	SPDK_ERRLOG("Could not find the cluster name =%p\n", name);
 

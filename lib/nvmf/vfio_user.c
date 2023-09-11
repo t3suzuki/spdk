@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   Copyright (c) 2019-2022, Nutanix Inc. All rights reserved.
@@ -1177,7 +1178,7 @@ nvmf_vfio_user_destroy_endpoint(struct nvmf_vfio_user_endpoint *endpoint)
 		vfu_destroy_ctx(endpoint->vfu_ctx);
 	}
 
-	pthread_mutex_destroy(&endpoint->lock);
+	real_pthread_mutex_destroy(&endpoint->lock);
 	free(endpoint);
 }
 
@@ -1194,8 +1195,8 @@ nvmf_vfio_user_destroy(struct spdk_nvmf_transport *transport,
 	vu_transport = SPDK_CONTAINEROF(transport, struct nvmf_vfio_user_transport,
 					transport);
 
-	pthread_mutex_destroy(&vu_transport->lock);
-	pthread_mutex_destroy(&vu_transport->pg_lock);
+	real_pthread_mutex_destroy(&vu_transport->lock);
+	real_pthread_mutex_destroy(&vu_transport->pg_lock);
 
 	TAILQ_FOREACH_SAFE(endpoint, &vu_transport->endpoints, link, tmp) {
 		TAILQ_REMOVE(&vu_transport->endpoints, endpoint, link);
@@ -1257,16 +1258,16 @@ nvmf_vfio_user_create(struct spdk_nvmf_transport_opts *opts)
 		return NULL;
 	}
 
-	err = pthread_mutex_init(&vu_transport->lock, NULL);
+	err = real_pthread_mutex_init(&vu_transport->lock, NULL);
 	if (err != 0) {
 		SPDK_ERRLOG("Pthread initialisation failed (%d)\n", err);
 		goto err;
 	}
 	TAILQ_INIT(&vu_transport->endpoints);
 
-	err = pthread_mutex_init(&vu_transport->pg_lock, NULL);
+	err = real_pthread_mutex_init(&vu_transport->pg_lock, NULL);
 	if (err != 0) {
-		pthread_mutex_destroy(&vu_transport->lock);
+		real_pthread_mutex_destroy(&vu_transport->lock);
 		SPDK_ERRLOG("Pthread initialisation failed (%d)\n", err);
 		goto err;
 	}
@@ -1321,8 +1322,8 @@ nvmf_vfio_user_create(struct spdk_nvmf_transport_opts *opts)
 	return &vu_transport->transport;
 
 cleanup:
-	pthread_mutex_destroy(&vu_transport->lock);
-	pthread_mutex_destroy(&vu_transport->pg_lock);
+	real_pthread_mutex_destroy(&vu_transport->lock);
+	real_pthread_mutex_destroy(&vu_transport->pg_lock);
 err:
 	free(vu_transport);
 	return NULL;
@@ -2671,7 +2672,7 @@ memory_region_add_cb(vfu_ctx_t *vfu_ctx, vfu_dma_info_t *info)
 		}
 	}
 
-	pthread_mutex_lock(&endpoint->lock);
+	real_pthread_mutex_lock(&endpoint->lock);
 	TAILQ_FOREACH(sq, &ctrlr->connected_sqs, tailq) {
 		if (sq->sq_state != VFIO_USER_SQ_INACTIVE) {
 			continue;
@@ -2702,7 +2703,7 @@ memory_region_add_cb(vfu_ctx_t *vfu_ctx, vfu_dma_info_t *info)
 		sq->sq_state = VFIO_USER_SQ_ACTIVE;
 		SPDK_DEBUGLOG(nvmf_vfio, "Remap sqid:%u successfully\n", sq->qid);
 	}
-	pthread_mutex_unlock(&endpoint->lock);
+	real_pthread_mutex_unlock(&endpoint->lock);
 }
 
 static void
@@ -2736,7 +2737,7 @@ memory_region_remove_cb(vfu_ctx_t *vfu_ctx, vfu_dma_info_t *info)
 		struct nvmf_vfio_user_ctrlr *ctrlr;
 		ctrlr = endpoint->ctrlr;
 
-		pthread_mutex_lock(&endpoint->lock);
+		real_pthread_mutex_lock(&endpoint->lock);
 		TAILQ_FOREACH(sq, &ctrlr->connected_sqs, tailq) {
 			if (q_addr(&sq->mapping) >= map_start && q_addr(&sq->mapping) <= map_end) {
 				unmap_q(ctrlr, &sq->mapping);
@@ -2767,7 +2768,7 @@ memory_region_remove_cb(vfu_ctx_t *vfu_ctx, vfu_dma_info_t *info)
 			}
 		}
 
-		pthread_mutex_unlock(&endpoint->lock);
+		real_pthread_mutex_unlock(&endpoint->lock);
 	}
 
 	if (info->prot == (PROT_WRITE | PROT_READ) && !is_peer_same_process(endpoint)) {
@@ -4412,22 +4413,22 @@ nvmf_vfio_user_listen(struct spdk_nvmf_transport *transport,
 	vu_transport = SPDK_CONTAINEROF(transport, struct nvmf_vfio_user_transport,
 					transport);
 
-	pthread_mutex_lock(&vu_transport->lock);
+	real_pthread_mutex_lock(&vu_transport->lock);
 	TAILQ_FOREACH_SAFE(endpoint, &vu_transport->endpoints, link, tmp) {
 		/* Only compare traddr */
 		if (strncmp(endpoint->trid.traddr, trid->traddr, sizeof(endpoint->trid.traddr)) == 0) {
-			pthread_mutex_unlock(&vu_transport->lock);
+			real_pthread_mutex_unlock(&vu_transport->lock);
 			return -EEXIST;
 		}
 	}
-	pthread_mutex_unlock(&vu_transport->lock);
+	real_pthread_mutex_unlock(&vu_transport->lock);
 
 	endpoint = calloc(1, sizeof(*endpoint));
 	if (!endpoint) {
 		return -ENOMEM;
 	}
 
-	pthread_mutex_init(&endpoint->lock, NULL);
+	real_pthread_mutex_init(&endpoint->lock, NULL);
 	endpoint->devmem_fd = -1;
 	memcpy(&endpoint->trid, trid, sizeof(endpoint->trid));
 	endpoint->transport = vu_transport;
@@ -4532,9 +4533,9 @@ nvmf_vfio_user_listen(struct spdk_nvmf_transport *transport,
 		goto out;
 	}
 
-	pthread_mutex_lock(&vu_transport->lock);
+	real_pthread_mutex_lock(&vu_transport->lock);
 	TAILQ_INSERT_TAIL(&vu_transport->endpoints, endpoint, link);
-	pthread_mutex_unlock(&vu_transport->lock);
+	real_pthread_mutex_unlock(&vu_transport->lock);
 
 out:
 	if (ret != 0) {
@@ -4559,7 +4560,7 @@ nvmf_vfio_user_stop_listen(struct spdk_nvmf_transport *transport,
 	vu_transport = SPDK_CONTAINEROF(transport, struct nvmf_vfio_user_transport,
 					transport);
 
-	pthread_mutex_lock(&vu_transport->lock);
+	real_pthread_mutex_lock(&vu_transport->lock);
 	TAILQ_FOREACH_SAFE(endpoint, &vu_transport->endpoints, link, tmp) {
 		if (strcmp(trid->traddr, endpoint->trid.traddr) == 0) {
 			TAILQ_REMOVE(&vu_transport->endpoints, endpoint, link);
@@ -4572,16 +4573,16 @@ nvmf_vfio_user_stop_listen(struct spdk_nvmf_transport *transport,
 			if (endpoint->ctrlr) {
 				assert(!endpoint->need_async_destroy);
 				endpoint->need_async_destroy = true;
-				pthread_mutex_unlock(&vu_transport->lock);
+				real_pthread_mutex_unlock(&vu_transport->lock);
 				return;
 			}
 
 			nvmf_vfio_user_destroy_endpoint(endpoint);
-			pthread_mutex_unlock(&vu_transport->lock);
+			real_pthread_mutex_unlock(&vu_transport->lock);
 			return;
 		}
 	}
-	pthread_mutex_unlock(&vu_transport->lock);
+	real_pthread_mutex_unlock(&vu_transport->lock);
 
 	SPDK_DEBUGLOG(nvmf_vfio, "%s: not found\n", trid->traddr);
 }
@@ -4619,13 +4620,13 @@ nvmf_vfio_user_listen_associate(struct spdk_nvmf_transport *transport,
 
 	vu_transport = SPDK_CONTAINEROF(transport, struct nvmf_vfio_user_transport, transport);
 
-	pthread_mutex_lock(&vu_transport->lock);
+	real_pthread_mutex_lock(&vu_transport->lock);
 	TAILQ_FOREACH(endpoint, &vu_transport->endpoints, link) {
 		if (strncmp(endpoint->trid.traddr, trid->traddr, sizeof(endpoint->trid.traddr)) == 0) {
 			break;
 		}
 	}
-	pthread_mutex_unlock(&vu_transport->lock);
+	real_pthread_mutex_unlock(&vu_transport->lock);
 
 	if (endpoint == NULL) {
 		return -ENOENT;
@@ -4737,12 +4738,12 @@ nvmf_vfio_user_poll_group_create(struct spdk_nvmf_transport *transport,
 
 	TAILQ_INIT(&vu_group->sqs);
 
-	pthread_mutex_lock(&vu_transport->pg_lock);
+	real_pthread_mutex_lock(&vu_transport->pg_lock);
 	TAILQ_INSERT_TAIL(&vu_transport->poll_groups, vu_group, link);
 	if (vu_transport->next_pg == NULL) {
 		vu_transport->next_pg = vu_group;
 	}
-	pthread_mutex_unlock(&vu_transport->pg_lock);
+	real_pthread_mutex_unlock(&vu_transport->pg_lock);
 
 	return &vu_group->group;
 }
@@ -4762,7 +4763,7 @@ nvmf_vfio_user_get_optimal_poll_group(struct spdk_nvmf_qpair *qpair)
 	assert(cq != NULL);
 	vu_transport = SPDK_CONTAINEROF(qpair->transport, struct nvmf_vfio_user_transport, transport);
 
-	pthread_mutex_lock(&vu_transport->pg_lock);
+	real_pthread_mutex_lock(&vu_transport->pg_lock);
 	if (TAILQ_EMPTY(&vu_transport->poll_groups)) {
 		goto out;
 	}
@@ -4806,7 +4807,7 @@ out:
 		cq->group = result;
 	}
 
-	pthread_mutex_unlock(&vu_transport->pg_lock);
+	real_pthread_mutex_unlock(&vu_transport->pg_lock);
 	return result;
 }
 
@@ -4838,7 +4839,7 @@ nvmf_vfio_user_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
 		vfio_user_poll_group_del_intr(vu_group);
 	}
 
-	pthread_mutex_lock(&vu_transport->pg_lock);
+	real_pthread_mutex_lock(&vu_transport->pg_lock);
 	next_tgroup = TAILQ_NEXT(vu_group, link);
 	TAILQ_REMOVE(&vu_transport->poll_groups, vu_group, link);
 	if (next_tgroup == NULL) {
@@ -4847,7 +4848,7 @@ nvmf_vfio_user_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
 	if (vu_transport->next_pg == vu_group) {
 		vu_transport->next_pg = next_tgroup;
 	}
-	pthread_mutex_unlock(&vu_transport->pg_lock);
+	real_pthread_mutex_unlock(&vu_transport->pg_lock);
 
 	free(vu_group);
 }
@@ -4872,13 +4873,13 @@ vfio_user_destroy_ctrlr(struct nvmf_vfio_user_ctrlr *ctrlr)
 	endpoint = ctrlr->endpoint;
 	assert(endpoint != NULL);
 
-	pthread_mutex_lock(&endpoint->lock);
+	real_pthread_mutex_lock(&endpoint->lock);
 	endpoint->need_relisten = true;
 	ctrlr->disconnect = true;
 	if (TAILQ_EMPTY(&ctrlr->connected_sqs)) {
 		endpoint->ctrlr = NULL;
 		free_ctrlr(ctrlr);
-		pthread_mutex_unlock(&endpoint->lock);
+		real_pthread_mutex_unlock(&endpoint->lock);
 		return 0;
 	}
 
@@ -4886,7 +4887,7 @@ vfio_user_destroy_ctrlr(struct nvmf_vfio_user_ctrlr *ctrlr)
 		/* add another round thread poll to avoid recursive endpoint lock */
 		spdk_thread_send_msg(ctrlr->thread, _vfio_user_qpair_disconnect, sq);
 	}
-	pthread_mutex_unlock(&endpoint->lock);
+	real_pthread_mutex_unlock(&endpoint->lock);
 
 	return 0;
 }
@@ -5125,7 +5126,7 @@ handle_queue_connect_rsp(struct nvmf_vfio_user_req *req, void *cb_arg)
 	assert(admin_cq->group != NULL);
 	assert(admin_cq->group->group->thread != NULL);
 
-	pthread_mutex_lock(&endpoint->lock);
+	real_pthread_mutex_lock(&endpoint->lock);
 	if (nvmf_qpair_is_admin_queue(&sq->qpair)) {
 		assert(admin_cq->group->group->thread == spdk_get_thread());
 		/*
@@ -5178,7 +5179,7 @@ handle_queue_connect_rsp(struct nvmf_vfio_user_req *req, void *cb_arg)
 	}
 
 	TAILQ_INSERT_TAIL(&vu_ctrlr->connected_sqs, sq, tailq);
-	pthread_mutex_unlock(&endpoint->lock);
+	real_pthread_mutex_unlock(&endpoint->lock);
 
 	free(req->req.iov[0].iov_base);
 	req->req.iov[0].iov_base = NULL;
@@ -5339,7 +5340,7 @@ nvmf_vfio_user_close_qpair(struct spdk_nvmf_qpair *qpair,
 	del_ctx = sq->delete_ctx;
 	sq->delete_ctx = NULL;
 
-	pthread_mutex_lock(&endpoint->lock);
+	real_pthread_mutex_lock(&endpoint->lock);
 	TAILQ_REMOVE(&vu_ctrlr->connected_sqs, sq, tailq);
 	delete_sq_done(vu_ctrlr, sq);
 	if (TAILQ_EMPTY(&vu_ctrlr->connected_sqs)) {
@@ -5354,7 +5355,7 @@ nvmf_vfio_user_close_qpair(struct spdk_nvmf_qpair *qpair,
 		}
 		free_ctrlr(vu_ctrlr);
 	}
-	pthread_mutex_unlock(&endpoint->lock);
+	real_pthread_mutex_unlock(&endpoint->lock);
 
 	if (del_ctx) {
 		vfio_user_qpair_delete_cb(del_ctx);

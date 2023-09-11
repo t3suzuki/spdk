@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   All rights reserved.
@@ -1099,7 +1100,7 @@ start_cache(struct vbdev_ocf *vbdev)
 	}
 
 	vbdev_ocf_cache_ctx_get(vbdev->cache_ctx);
-	pthread_mutex_init(&vbdev->cache_ctx->lock, NULL);
+	real_pthread_mutex_init(&vbdev->cache_ctx->lock, NULL);
 
 	rc = ocf_mngt_cache_start(vbdev_ocf_ctx, &vbdev->ocf_cache, &vbdev->cfg.cache, NULL);
 	if (rc) {

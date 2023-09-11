@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   All rights reserved.
@@ -311,7 +312,7 @@ _device_unregister_cb(void *io_device)
 	struct vbdev_compress *comp_bdev = io_device;
 
 	/* Done with this comp_bdev. */
-	pthread_mutex_destroy(&comp_bdev->reduce_lock);
+	real_pthread_mutex_destroy(&comp_bdev->reduce_lock);
 	free(comp_bdev->comp_bdev.name);
 	free(comp_bdev);
 }
@@ -399,13 +400,13 @@ delete_vol_unload_cb(void *cb_arg, int reduce_errno)
 		return;
 	}
 
-	pthread_mutex_lock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_lock(&comp_bdev->reduce_lock);
 	if (comp_bdev->reduce_thread && comp_bdev->reduce_thread != spdk_get_thread()) {
 		spdk_thread_send_msg(comp_bdev->reduce_thread,
 				     _delete_vol_unload_cb, comp_bdev);
-		pthread_mutex_unlock(&comp_bdev->reduce_lock);
+		real_pthread_mutex_unlock(&comp_bdev->reduce_lock);
 	} else {
-		pthread_mutex_unlock(&comp_bdev->reduce_lock);
+		real_pthread_mutex_unlock(&comp_bdev->reduce_lock);
 
 		_delete_vol_unload_cb(comp_bdev);
 	}
@@ -802,7 +803,7 @@ comp_bdev_ch_create_cb(void *io_device, void *ctx_buf)
 	struct vbdev_compress *comp_bdev = io_device;
 
 	/* Now set the reduce channel if it's not already set. */
-	pthread_mutex_lock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_lock(&comp_bdev->reduce_lock);
 	if (comp_bdev->ch_count == 0) {
 		/* We use this queue to track outstanding IO in our layer. */
 		TAILQ_INIT(&comp_bdev->pending_comp_ios);
@@ -815,7 +816,7 @@ comp_bdev_ch_create_cb(void *io_device, void *ctx_buf)
 		comp_bdev->accel_channel = spdk_accel_get_io_channel();
 	}
 	comp_bdev->ch_count++;
-	pthread_mutex_unlock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_unlock(&comp_bdev->reduce_lock);
 
 	return 0;
 }
@@ -834,9 +835,9 @@ _comp_bdev_ch_destroy_cb(void *arg)
 {
 	struct vbdev_compress *comp_bdev = arg;
 
-	pthread_mutex_lock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_lock(&comp_bdev->reduce_lock);
 	_channel_cleanup(comp_bdev);
-	pthread_mutex_unlock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_unlock(&comp_bdev->reduce_lock);
 }
 
 /* We provide this callback for the SPDK channel code to destroy a channel
@@ -848,7 +849,7 @@ comp_bdev_ch_destroy_cb(void *io_device, void *ctx_buf)
 {
 	struct vbdev_compress *comp_bdev = io_device;
 
-	pthread_mutex_lock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_lock(&comp_bdev->reduce_lock);
 	comp_bdev->ch_count--;
 	if (comp_bdev->ch_count == 0) {
 		/* Send this request to the thread where the channel was created. */
@@ -859,7 +860,7 @@ comp_bdev_ch_destroy_cb(void *io_device, void *ctx_buf)
 			_channel_cleanup(comp_bdev);
 		}
 	}
-	pthread_mutex_unlock(&comp_bdev->reduce_lock);
+	real_pthread_mutex_unlock(&comp_bdev->reduce_lock);
 }
 
 /* RPC entry point for compression vbdev creation. */
@@ -989,7 +990,7 @@ vbdev_compress_claim(struct vbdev_compress *comp_bdev)
 		return -EINVAL;
 	}
 
-	pthread_mutex_init(&comp_bdev->reduce_lock, NULL);
+	real_pthread_mutex_init(&comp_bdev->reduce_lock, NULL);
 
 	/* Save the thread where the base device is opened */
 	comp_bdev->thread = spdk_get_thread();
@@ -1114,7 +1115,7 @@ _vbdev_reduce_load_cb(void *ctx)
 		meta_ctx->thread = spdk_get_thread();
 
 		meta_ctx->comp_bdev.module = &compress_if;
-		pthread_mutex_init(&meta_ctx->reduce_lock, NULL);
+		real_pthread_mutex_init(&meta_ctx->reduce_lock, NULL);
 		rc = spdk_bdev_module_claim_bdev(meta_ctx->base_bdev, meta_ctx->base_desc,
 						 meta_ctx->comp_bdev.module);
 		if (rc) {

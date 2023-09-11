@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -150,7 +151,7 @@ _iscsi_free_lun(void *arg)
 
 	assert(lun != NULL);
 	iscsi_destroy_context(lun->context);
-	pthread_mutex_destroy(&lun->mutex);
+	real_pthread_mutex_destroy(&lun->mutex);
 	free(lun->bdev.name);
 	free(lun->url);
 	free(lun->initiator_iqn);
@@ -563,7 +564,7 @@ bdev_iscsi_no_main_ch_poll(void *arg)
 	struct bdev_iscsi_lun *lun = arg;
 	enum spdk_thread_poller_rc rc = SPDK_POLLER_IDLE;
 
-	if (pthread_mutex_trylock(&lun->mutex)) {
+	if (real_pthread_mutex_trylock(&lun->mutex)) {
 		/* Don't care about the error code here. */
 		return SPDK_POLLER_IDLE;
 	}
@@ -572,7 +573,7 @@ bdev_iscsi_no_main_ch_poll(void *arg)
 		rc = bdev_iscsi_poll_lun(arg);
 	}
 
-	pthread_mutex_unlock(&lun->mutex);
+	real_pthread_mutex_unlock(&lun->mutex);
 	return rc;
 }
 
@@ -678,7 +679,7 @@ bdev_iscsi_create_cb(void *io_device, void *ctx_buf)
 	struct bdev_iscsi_io_channel *ch = ctx_buf;
 	struct bdev_iscsi_lun *lun = io_device;
 
-	pthread_mutex_lock(&lun->mutex);
+	real_pthread_mutex_lock(&lun->mutex);
 	if (lun->ch_count == 0) {
 		assert(lun->main_td == NULL);
 		lun->main_td = spdk_get_thread();
@@ -690,7 +691,7 @@ bdev_iscsi_create_cb(void *io_device, void *ctx_buf)
 		ch->lun = lun;
 	}
 	lun->ch_count++;
-	pthread_mutex_unlock(&lun->mutex);
+	real_pthread_mutex_unlock(&lun->mutex);
 
 	return 0;
 }
@@ -700,14 +701,14 @@ _iscsi_destroy_cb(void *ctx)
 {
 	struct bdev_iscsi_lun *lun = ctx;
 
-	pthread_mutex_lock(&lun->mutex);
+	real_pthread_mutex_lock(&lun->mutex);
 
 	assert(lun->main_td == spdk_get_thread());
 	assert(lun->ch_count > 0);
 
 	lun->ch_count--;
 	if (lun->ch_count > 0) {
-		pthread_mutex_unlock(&lun->mutex);
+		real_pthread_mutex_unlock(&lun->mutex);
 		return;
 	}
 
@@ -715,7 +716,7 @@ _iscsi_destroy_cb(void *ctx)
 	spdk_poller_unregister(&lun->poller);
 	spdk_poller_unregister(&lun->timeout_poller);
 
-	pthread_mutex_unlock(&lun->mutex);
+	real_pthread_mutex_unlock(&lun->mutex);
 }
 
 static void
@@ -724,7 +725,7 @@ bdev_iscsi_destroy_cb(void *io_device, void *ctx_buf)
 	struct bdev_iscsi_lun *lun = io_device;
 	struct spdk_thread *thread;
 
-	pthread_mutex_lock(&lun->mutex);
+	real_pthread_mutex_lock(&lun->mutex);
 	lun->ch_count--;
 	if (lun->ch_count == 0) {
 		assert(lun->main_td != NULL);
@@ -735,7 +736,7 @@ bdev_iscsi_destroy_cb(void *io_device, void *ctx_buf)
 			 * to the main thread to unregister the poller. */
 			lun->ch_count++;
 			thread = lun->main_td;
-			pthread_mutex_unlock(&lun->mutex);
+			real_pthread_mutex_unlock(&lun->mutex);
 			spdk_thread_send_msg(thread, _iscsi_destroy_cb, lun);
 			return;
 		}
@@ -744,7 +745,7 @@ bdev_iscsi_destroy_cb(void *io_device, void *ctx_buf)
 		spdk_poller_unregister(&lun->poller);
 		spdk_poller_unregister(&lun->timeout_poller);
 	}
-	pthread_mutex_unlock(&lun->mutex);
+	real_pthread_mutex_unlock(&lun->mutex);
 }
 
 static struct spdk_io_channel *
@@ -773,7 +774,7 @@ bdev_iscsi_write_config_json(struct spdk_bdev *bdev, struct spdk_json_write_ctx 
 {
 	struct bdev_iscsi_lun *lun = bdev->ctxt;
 
-	pthread_mutex_lock(&lun->mutex);
+	real_pthread_mutex_lock(&lun->mutex);
 	spdk_json_write_object_begin(w);
 
 	spdk_json_write_named_string(w, "method", "bdev_iscsi_create");
@@ -785,7 +786,7 @@ bdev_iscsi_write_config_json(struct spdk_bdev *bdev, struct spdk_json_write_ctx 
 	spdk_json_write_object_end(w);
 
 	spdk_json_write_object_end(w);
-	pthread_mutex_unlock(&lun->mutex);
+	real_pthread_mutex_unlock(&lun->mutex);
 }
 
 static const struct spdk_bdev_fn_table iscsi_fn_table = {
@@ -815,7 +816,7 @@ create_iscsi_lun(struct bdev_iscsi_conn_req *req, uint64_t num_blocks,
 	lun->url = req->url;
 	lun->initiator_iqn = req->initiator_iqn;
 
-	pthread_mutex_init(&lun->mutex, NULL);
+	real_pthread_mutex_init(&lun->mutex, NULL);
 
 	lun->bdev.name = req->bdev_name;
 	lun->bdev.product_name = "iSCSI LUN";
@@ -839,7 +840,7 @@ create_iscsi_lun(struct bdev_iscsi_conn_req *req, uint64_t num_blocks,
 	rc = spdk_bdev_register(&lun->bdev);
 	if (rc) {
 		spdk_io_device_unregister(lun, NULL);
-		pthread_mutex_destroy(&lun->mutex);
+		real_pthread_mutex_destroy(&lun->mutex);
 		free(lun);
 		return rc;
 	}

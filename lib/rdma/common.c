@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2021 Intel Corporation. All rights reserved.
  *   Copyright (c) 2020, 2021 Mellanox Technologies LTD. All rights reserved.
@@ -126,12 +127,12 @@ spdk_rdma_create_mem_map(struct ibv_pd *pd, struct spdk_nvme_rdma_hooks *hooks,
 {
 	struct spdk_rdma_mem_map *map;
 
-	pthread_mutex_lock(&g_rdma_mr_maps_mutex);
+	real_pthread_mutex_lock(&g_rdma_mr_maps_mutex);
 	/* Look up existing mem map registration for this pd */
 	LIST_FOREACH(map, &g_rdma_mr_maps, link) {
 		if (map->pd == pd && map->role == role) {
 			map->ref_count++;
-			pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
+			real_pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
 			return map;
 		}
 	}
@@ -142,7 +143,7 @@ spdk_rdma_create_mem_map(struct ibv_pd *pd, struct spdk_nvme_rdma_hooks *hooks,
 		map = calloc(1, sizeof(*map));
 	}
 	if (!map) {
-		pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
+		real_pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
 		SPDK_ERRLOG("Memory allocation failed\n");
 		return NULL;
 	}
@@ -154,12 +155,12 @@ spdk_rdma_create_mem_map(struct ibv_pd *pd, struct spdk_nvme_rdma_hooks *hooks,
 	if (!map->map) {
 		SPDK_ERRLOG("Unable to create memory map\n");
 		_rdma_free_mem_map(map);
-		pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
+		real_pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
 		return NULL;
 	}
 	LIST_INSERT_HEAD(&g_rdma_mr_maps, map, link);
 
-	pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
+	real_pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
 
 	return map;
 }
@@ -179,16 +180,16 @@ spdk_rdma_free_mem_map(struct spdk_rdma_mem_map **_map)
 	}
 	*_map = NULL;
 
-	pthread_mutex_lock(&g_rdma_mr_maps_mutex);
+	real_pthread_mutex_lock(&g_rdma_mr_maps_mutex);
 	assert(map->ref_count > 0);
 	map->ref_count--;
 	if (map->ref_count != 0) {
-		pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
+		real_pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
 		return;
 	}
 
 	LIST_REMOVE(map, link);
-	pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
+	real_pthread_mutex_unlock(&g_rdma_mr_maps_mutex);
 	if (map->map) {
 		spdk_mem_map_free(&map->map);
 	}
@@ -509,11 +510,11 @@ spdk_rdma_get_pd(struct ibv_context *context)
 	struct spdk_rdma_device *dev;
 	int rc;
 
-	pthread_mutex_lock(&g_dev_mutex);
+	real_pthread_mutex_lock(&g_dev_mutex);
 
 	rc = rdma_sync_dev_list();
 	if (rc != 0) {
-		pthread_mutex_unlock(&g_dev_mutex);
+		real_pthread_mutex_unlock(&g_dev_mutex);
 
 		SPDK_ERRLOG("Failed to sync RDMA device list\n");
 		return NULL;
@@ -522,13 +523,13 @@ spdk_rdma_get_pd(struct ibv_context *context)
 	TAILQ_FOREACH(dev, &g_dev_list, tailq) {
 		if (dev->context == context && !dev->removed) {
 			dev->ref++;
-			pthread_mutex_unlock(&g_dev_mutex);
+			real_pthread_mutex_unlock(&g_dev_mutex);
 
 			return dev->pd;
 		}
 	}
 
-	pthread_mutex_unlock(&g_dev_mutex);
+	real_pthread_mutex_unlock(&g_dev_mutex);
 
 	SPDK_ERRLOG("Failed to get PD\n");
 	return NULL;
@@ -539,7 +540,7 @@ spdk_rdma_put_pd(struct ibv_pd *pd)
 {
 	struct spdk_rdma_device *dev, *tmp;
 
-	pthread_mutex_lock(&g_dev_mutex);
+	real_pthread_mutex_lock(&g_dev_mutex);
 
 	TAILQ_FOREACH_SAFE(dev, &g_dev_list, tailq, tmp) {
 		if (dev->pd == pd) {
@@ -552,7 +553,7 @@ spdk_rdma_put_pd(struct ibv_pd *pd)
 
 	rdma_sync_dev_list();
 
-	pthread_mutex_unlock(&g_dev_mutex);
+	real_pthread_mutex_unlock(&g_dev_mutex);
 }
 
 __attribute__((destructor)) static void

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019, 2020 Mellanox Technologies LTD. All rights reserved.
@@ -798,9 +799,9 @@ _nvmf_ctrlr_connect(struct spdk_nvmf_request *req)
 	qpair->qid = cmd->qid;
 	qpair->connect_received = true;
 
-	pthread_mutex_lock(&qpair->group->mutex);
+	real_pthread_mutex_lock(&qpair->group->mutex);
 	qpair->group->current_unassociated_qpairs--;
-	pthread_mutex_unlock(&qpair->group->mutex);
+	real_pthread_mutex_unlock(&qpair->group->mutex);
 
 	if (0 == qpair->qid) {
 		qpair->group->stat.admin_qpairs++;

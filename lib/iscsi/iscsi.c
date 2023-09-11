@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -527,7 +528,7 @@ create_iscsi_sess(struct spdk_iscsi_conn *conn,
 	}
 
 	/* configuration values */
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	sess->MaxConnections = g_iscsi.MaxConnectionsPerSession;
 	sess->MaxOutstandingR2T = DEFAULT_MAXOUTSTANDINGR2T;
@@ -542,7 +543,7 @@ create_iscsi_sess(struct spdk_iscsi_conn *conn,
 	sess->DataSequenceInOrder = DEFAULT_DATASEQUENCEINORDER;
 	sess->ErrorRecoveryLevel = g_iscsi.ErrorRecoveryLevel;
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	sess->tag = conn->pg_tag;
 
@@ -1647,9 +1648,9 @@ iscsi_op_login_session_normal(struct spdk_iscsi_conn *conn,
 			 target_short_name);
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	rc = iscsi_op_login_check_target(conn, rsp_pdu, target_name, &target);
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	if (rc < 0) {
 		return rc;
@@ -1667,9 +1668,9 @@ iscsi_op_login_session_normal(struct spdk_iscsi_conn *conn,
 	}
 
 	/* force target flags */
-	pthread_mutex_lock(&target->mutex);
+	real_pthread_mutex_lock(&target->mutex);
 	rc = iscsi_op_login_negotiate_chap_param(conn, target);
-	pthread_mutex_unlock(&target->mutex);
+	real_pthread_mutex_unlock(&target->mutex);
 
 	if (rc == 0) {
 		rc = iscsi_op_login_negotiate_digest_param(conn, target);
@@ -1774,13 +1775,13 @@ iscsi_op_login_set_target_info(struct spdk_iscsi_conn *conn,
 
 	/* declarative parameters */
 	if (target != NULL) {
-		pthread_mutex_lock(&target->mutex);
+		real_pthread_mutex_lock(&target->mutex);
 		if (target->alias[0] != '\0') {
 			snprintf(buf, sizeof buf, "%s", target->alias);
 		} else {
 			snprintf(buf, sizeof buf, "%s", "");
 		}
-		pthread_mutex_unlock(&target->mutex);
+		real_pthread_mutex_unlock(&target->mutex);
 		rc = iscsi_param_set(conn->sess->params, "TargetAlias", buf);
 		if (rc < 0) {
 			SPDK_ERRLOG("iscsi_param_set() failed\n");
@@ -1874,9 +1875,9 @@ iscsi_op_login_phase_none(struct spdk_iscsi_conn *conn,
 		rsph->tsih = 0;
 
 		/* force target flags */
-		pthread_mutex_lock(&g_iscsi.mutex);
+		real_pthread_mutex_lock(&g_iscsi.mutex);
 		rc = iscsi_op_login_session_discovery_chap(conn);
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 		if (rc < 0) {
 			return rc;
 		}

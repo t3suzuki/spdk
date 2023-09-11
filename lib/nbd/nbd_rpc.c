@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -289,7 +290,7 @@ rpc_nbd_stop_disk(struct spdk_jsonrpc_request *request,
 	 * NBD ioctl of disconnect will block until data are flushed.
 	 * Create separate thread to execute it.
 	 */
-	rc = pthread_create(&tid, NULL, nbd_disconnect_thread, (void *)thd_arg);
+	rc = real_pthread_create(&tid, NULL, nbd_disconnect_thread, (void *)thd_arg);
 	if (rc != 0) {
 		SPDK_ERRLOG("could not create nbd disconnect thread: %s\n", spdk_strerror(rc));
 		spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INTERNAL_ERROR, spdk_strerror(rc));

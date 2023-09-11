@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation.
  *   All rights reserved.
@@ -389,11 +390,11 @@ _free_thread(struct spdk_thread *thread)
 		free(poller);
 	}
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	assert(g_thread_count > 0);
 	g_thread_count--;
 	TAILQ_REMOVE(&g_threads, thread, tailq);
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	msg = SLIST_FIRST(&thread->msg_cache);
 	while (msg != NULL) {
@@ -536,17 +537,17 @@ spdk_thread_create(const char *name, const struct spdk_cpuset *cpumask)
 		snprintf(thread->name, sizeof(thread->name), "%p", thread);
 	}
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	if (g_thread_id == 0) {
 		SPDK_ERRLOG("Thread ID rolled over. Further thread creation is not allowed.\n");
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		_free_thread(thread);
 		return NULL;
 	}
 	thread->id = g_thread_id++;
 	TAILQ_INSERT_TAIL(&g_threads, thread, tailq);
 	g_thread_count++;
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	SPDK_DEBUGLOG(thread, "Allocating new thread (%" PRIu64 ", %s)\n",
 		      thread->id, thread->name);
@@ -1268,13 +1269,13 @@ spdk_thread_get_by_id(uint64_t id)
 		SPDK_ERRLOG("invalid thread id: %" PRIu64 ".\n", id);
 		return NULL;
 	}
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	TAILQ_FOREACH(thread, &g_threads, tailq) {
 		if (thread->id == id) {
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 	return thread;
 }
 
@@ -1976,14 +1977,14 @@ _on_thread(void *ctx)
 
 	ct->fn(ct->ctx);
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	ct->cur_thread = TAILQ_NEXT(ct->cur_thread, tailq);
 	while (ct->cur_thread && ct->cur_thread->state != SPDK_THREAD_STATE_RUNNING) {
 		SPDK_DEBUGLOG(thread, "thread %s is not running but still not destroyed.\n",
 			      ct->cur_thread->name);
 		ct->cur_thread = TAILQ_NEXT(ct->cur_thread, tailq);
 	}
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	if (!ct->cur_thread) {
 		SPDK_DEBUGLOG(thread, "Completed thread iteration\n");
@@ -2026,9 +2027,9 @@ spdk_for_each_thread(spdk_msg_fn fn, void *ctx, spdk_msg_fn cpl)
 	}
 	ct->orig_thread = thread;
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	ct->cur_thread = TAILQ_FIRST(&g_threads);
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	SPDK_DEBUGLOG(thread, "Starting thread iteration from %s\n",
 		      ct->orig_thread->name);
@@ -2137,7 +2138,7 @@ spdk_io_device_register(void *io_device, spdk_io_channel_create_cb create_cb,
 	SPDK_DEBUGLOG(thread, "Registering io_device %s (%p) on thread %s\n",
 		      dev->name, dev->io_device, thread->name);
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	tmp = RB_INSERT(io_device_tree, &g_io_devices, dev);
 	if (tmp != NULL) {
 		SPDK_ERRLOG("io_device %p already registered (old:%s new:%s)\n",
@@ -2145,7 +2146,7 @@ spdk_io_device_register(void *io_device, spdk_io_channel_create_cb create_cb,
 		free(dev);
 	}
 
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 }
 
 static void
@@ -2197,12 +2198,12 @@ spdk_io_device_unregister(void *io_device, spdk_io_device_unregister_cb unregist
 		return;
 	}
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	dev = io_device_get(io_device);
 	if (!dev) {
 		SPDK_ERRLOG("io_device %p not found\n", io_device);
 		assert(false);
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return;
 	}
 
@@ -2213,7 +2214,7 @@ spdk_io_device_unregister(void *io_device, spdk_io_device_unregister_cb unregist
 	if (dev->pending_unregister && dev->for_each_count > 0) {
 		SPDK_ERRLOG("io_device %p already has a pending unregister\n", io_device);
 		assert(false);
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return;
 	}
 
@@ -2224,14 +2225,14 @@ spdk_io_device_unregister(void *io_device, spdk_io_device_unregister_cb unregist
 		SPDK_WARNLOG("io_device %s (%p) has %u for_each calls outstanding\n",
 			     dev->name, io_device, dev->for_each_count);
 		dev->pending_unregister = true;
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return;
 	}
 
 	dev->unregistered = true;
 	RB_REMOVE(io_device_tree, &g_io_devices, dev);
 	refcnt = dev->refcnt;
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	SPDK_DEBUGLOG(thread, "Unregistering io_device %s (%p) from thread %s\n",
 		      dev->name, dev->io_device, thread->name);
@@ -2271,24 +2272,24 @@ spdk_get_io_channel(void *io_device)
 	struct io_device *dev;
 	int rc;
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	dev = io_device_get(io_device);
 	if (dev == NULL) {
 		SPDK_ERRLOG("could not find io_device %p\n", io_device);
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return NULL;
 	}
 
 	thread = _get_thread();
 	if (!thread) {
 		SPDK_ERRLOG("No thread allocated\n");
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return NULL;
 	}
 
 	if (spdk_unlikely(thread->state == SPDK_THREAD_STATE_EXITED)) {
 		SPDK_ERRLOG("Thread %s is marked as exited\n", thread->name);
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return NULL;
 	}
 
@@ -2303,7 +2304,7 @@ spdk_get_io_channel(void *io_device)
 		 * An I/O channel already exists for this device on this
 		 *  thread, so return it.
 		 */
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		spdk_trace_record(TRACE_THREAD_IOCH_GET, 0, 0,
 				  (uint64_t)spdk_io_channel_get_ctx(ch), ch->ref);
 		return ch;
@@ -2312,7 +2313,7 @@ spdk_get_io_channel(void *io_device)
 	ch = calloc(1, sizeof(*ch) + dev->ctx_size);
 	if (ch == NULL) {
 		SPDK_ERRLOG("could not calloc spdk_io_channel\n");
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return NULL;
 	}
 
@@ -2328,17 +2329,17 @@ spdk_get_io_channel(void *io_device)
 
 	dev->refcnt++;
 
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	rc = dev->create_cb(io_device, (uint8_t *)ch + sizeof(*ch));
 	if (rc != 0) {
-		pthread_mutex_lock(&g_devlist_mutex);
+		real_pthread_mutex_lock(&g_devlist_mutex);
 		RB_REMOVE(io_channel_tree, &ch->thread->io_channels, ch);
 		dev->refcnt--;
 		free(ch);
 		SPDK_ERRLOG("could not create io_channel for io_device %s (%p): %s (rc=%d)\n",
 			    dev->name, io_device, spdk_strerror(-rc), rc);
-		pthread_mutex_unlock(&g_devlist_mutex);
+		real_pthread_mutex_unlock(&g_devlist_mutex);
 		return NULL;
 	}
 
@@ -2377,14 +2378,14 @@ put_io_channel(void *arg)
 		return;
 	}
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	RB_REMOVE(io_channel_tree, &ch->thread->io_channels, ch);
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	/* Don't hold the devlist mutex while the destroy_cb is called. */
 	ch->destroy_cb(ch->dev->io_device, spdk_io_channel_get_ctx(ch));
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	ch->dev->refcnt--;
 
 	if (!ch->dev->unregistered) {
@@ -2395,7 +2396,7 @@ put_io_channel(void *arg)
 		do_remove_dev = false;
 	}
 
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	if (do_remove_dev) {
 		io_device_free(ch->dev);
@@ -2521,9 +2522,9 @@ _call_channel(void *ctx)
 	 *  message had a chance to execute.  If so, skip calling
 	 *  the fn() on this thread.
 	 */
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	ch = thread_get_io_channel(i->cur_thread, i->dev);
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	if (ch) {
 		i->fn(i);
@@ -2554,7 +2555,7 @@ spdk_for_each_channel(void *io_device, spdk_channel_msg fn, void *ctx,
 	i->cpl = cpl;
 	i->orig_thread = _get_thread();
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	i->dev = io_device_get(io_device);
 	if (i->dev == NULL) {
 		SPDK_ERRLOG("could not find io_device %p\n", io_device);
@@ -2578,7 +2579,7 @@ spdk_for_each_channel(void *io_device, spdk_channel_msg fn, void *ctx,
 			ch->dev->for_each_count++;
 			i->cur_thread = thread;
 			i->ch = ch;
-			pthread_mutex_unlock(&g_devlist_mutex);
+			real_pthread_mutex_unlock(&g_devlist_mutex);
 			rc = spdk_thread_send_msg(thread, _call_channel, i);
 			assert(rc == 0);
 			return;
@@ -2586,7 +2587,7 @@ spdk_for_each_channel(void *io_device, spdk_channel_msg fn, void *ctx,
 	}
 
 end:
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	rc = spdk_thread_send_msg(i->orig_thread, _call_completion, i);
 	assert(rc == 0);
@@ -2614,7 +2615,7 @@ spdk_for_each_channel_continue(struct spdk_io_channel_iter *i, int status)
 
 	i->status = status;
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	dev = i->dev;
 	if (status) {
 		goto end;
@@ -2626,7 +2627,7 @@ spdk_for_each_channel_continue(struct spdk_io_channel_iter *i, int status)
 		if (ch != NULL) {
 			i->cur_thread = thread;
 			i->ch = ch;
-			pthread_mutex_unlock(&g_devlist_mutex);
+			real_pthread_mutex_unlock(&g_devlist_mutex);
 			rc = spdk_thread_send_msg(thread, _call_channel, i);
 			assert(rc == 0);
 			return;
@@ -2637,17 +2638,17 @@ spdk_for_each_channel_continue(struct spdk_io_channel_iter *i, int status)
 end:
 	dev->for_each_count--;
 	i->ch = NULL;
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 
 	rc = spdk_thread_send_msg(i->orig_thread, _call_completion, i);
 	assert(rc == 0);
 
-	pthread_mutex_lock(&g_devlist_mutex);
+	real_pthread_mutex_lock(&g_devlist_mutex);
 	if (dev->pending_unregister && dev->for_each_count == 0) {
 		rc = spdk_thread_send_msg(dev->unregister_thread, __pending_unregister, dev);
 		assert(rc == 0);
 	}
-	pthread_mutex_unlock(&g_devlist_mutex);
+	real_pthread_mutex_unlock(&g_devlist_mutex);
 }
 
 static void

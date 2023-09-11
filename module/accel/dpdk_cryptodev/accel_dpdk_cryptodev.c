@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   Copyright (c) 2022, 2023 NVIDIA CORPORATION & AFFILIATES.
@@ -818,7 +819,7 @@ accel_dpdk_cryptodev_assign_device_qps(struct accel_dpdk_cryptodev_io_channel *c
 	uint32_t num_drivers = 0;
 	bool qat_found = false;
 
-	pthread_mutex_lock(&g_device_lock);
+	real_pthread_mutex_lock(&g_device_lock);
 
 	TAILQ_FOREACH(device, &g_crypto_devices, link) {
 		if (device->type == ACCEL_DPDK_CRYPTODEV_DRIVER_QAT && !qat_found) {
@@ -861,7 +862,7 @@ accel_dpdk_cryptodev_assign_device_qps(struct accel_dpdk_cryptodev_io_channel *c
 		num_drivers++;
 	}
 
-	pthread_mutex_unlock(&g_device_lock);
+	real_pthread_mutex_unlock(&g_device_lock);
 
 	return num_drivers;
 }
@@ -873,13 +874,13 @@ _accel_dpdk_cryptodev_destroy_cb(void *io_device, void *ctx_buf)
 			ctx_buf;
 	int i;
 
-	pthread_mutex_lock(&g_device_lock);
+	real_pthread_mutex_lock(&g_device_lock);
 	for (i = 0; i < ACCEL_DPDK_CRYPTODEV_DRIVER_LAST; i++) {
 		if (crypto_ch->device_qp[i]) {
 			crypto_ch->device_qp[i]->in_use = false;
 		}
 	}
-	pthread_mutex_unlock(&g_device_lock);
+	real_pthread_mutex_unlock(&g_device_lock);
 
 	spdk_poller_unregister(&crypto_ch->poller);
 }
@@ -1450,14 +1451,14 @@ accel_dpdk_cryptodev_key_init(struct spdk_accel_crypto_key *key)
 		memcpy(priv->xts_key + key->key_size, key->key2, key->key2_size);
 	}
 
-	pthread_mutex_lock(&g_device_lock);
+	real_pthread_mutex_lock(&g_device_lock);
 	TAILQ_FOREACH(device, &g_crypto_devices, link) {
 		if (device->type != driver) {
 			continue;
 		}
 		key_handle = calloc(1, sizeof(*key_handle));
 		if (!key_handle) {
-			pthread_mutex_unlock(&g_device_lock);
+			real_pthread_mutex_unlock(&g_device_lock);
 			accel_dpdk_cryptodev_key_deinit(key);
 			return -ENOMEM;
 		}
@@ -1465,7 +1466,7 @@ accel_dpdk_cryptodev_key_init(struct spdk_accel_crypto_key *key)
 		TAILQ_INSERT_TAIL(&priv->dev_keys, key_handle, link);
 		rc = accel_dpdk_cryptodev_key_handle_configure(key, key_handle);
 		if (rc) {
-			pthread_mutex_unlock(&g_device_lock);
+			real_pthread_mutex_unlock(&g_device_lock);
 			accel_dpdk_cryptodev_key_deinit(key);
 			return rc;
 		}
@@ -1476,7 +1477,7 @@ accel_dpdk_cryptodev_key_init(struct spdk_accel_crypto_key *key)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_device_lock);
+	real_pthread_mutex_unlock(&g_device_lock);
 
 	if (TAILQ_EMPTY(&priv->dev_keys)) {
 		free(priv);

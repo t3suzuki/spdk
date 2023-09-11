@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation. All rights reserved.
  *   Copyright (c) 2020, 2021 Mellanox Technologies LTD. All rights reserved.
@@ -1095,7 +1096,7 @@ nvme_qpair_is_io_queue(struct spdk_nvme_qpair *qpair)
 static inline int
 nvme_robust_mutex_lock(pthread_mutex_t *mtx)
 {
-	int rc = pthread_mutex_lock(mtx);
+	int rc = real_pthread_mutex_lock(mtx);
 
 #ifndef __FreeBSD__
 	if (rc == EOWNERDEAD) {
@@ -1109,7 +1110,7 @@ nvme_robust_mutex_lock(pthread_mutex_t *mtx)
 static inline int
 nvme_robust_mutex_unlock(pthread_mutex_t *mtx)
 {
-	return pthread_mutex_unlock(mtx);
+	return real_pthread_mutex_unlock(mtx);
 }
 
 /* Poll group management functions. */

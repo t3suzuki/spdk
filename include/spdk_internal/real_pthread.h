@@ -55,6 +55,13 @@ INLINE int real_pthread_mutex_lock(pthread_mutex_t *mutex) {
   return ret;
 }
 
+INLINE int real_pthread_mutex_trylock(pthread_mutex_t *mutex) {
+  int (*dlsym_pthread_mutex_trylock)(pthread_mutex_t *mutex);
+  dlsym_pthread_mutex_trylock = dltrans("pthread_mutex_trylock");
+  int ret = dlsym_pthread_mutex_trylock(mutex);
+  return ret;
+}
+
 INLINE int real_pthread_mutex_unlock(pthread_mutex_t *mutex) {
   int (*dlsym_pthread_mutex_unlock)(pthread_mutex_t *mutex);
   dlsym_pthread_mutex_unlock = dltrans("pthread_mutex_unlock");

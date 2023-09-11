@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation.
  *   All rights reserved.
@@ -950,9 +951,9 @@ cuse_nvme_ns_start(struct cuse_device *ctrlr_device, uint32_t nsid)
 		free(ns_device);
 		return rv;
 	}
-	rv = pthread_create(&ns_device->tid, NULL, cuse_thread, ns_device);
+	rv = real_pthread_create(&ns_device->tid, NULL, cuse_thread, ns_device);
 	if (rv != 0) {
-		SPDK_ERRLOG("pthread_create failed\n");
+		SPDK_ERRLOG("real_pthread_create failed\n");
 		free(ns_device);
 		return -rv;
 	}
@@ -967,7 +968,7 @@ cuse_nvme_ns_stop(struct cuse_device *ctrlr_device, struct cuse_device *ns_devic
 	if (ns_device->session != NULL) {
 		fuse_session_exit(ns_device->session);
 	}
-	pthread_join(ns_device->tid, NULL);
+	real_pthread_join(ns_device->tid, NULL);
 	TAILQ_REMOVE(&ctrlr_device->ns_devices, ns_device, tailq);
 	if (ns_device->session != NULL) {
 		cuse_lowlevel_teardown(ns_device->session);
@@ -1049,7 +1050,7 @@ cuse_nvme_ctrlr_stop(struct cuse_device *ctrlr_device)
 	assert(TAILQ_EMPTY(&ctrlr_device->ns_devices));
 
 	fuse_session_exit(ctrlr_device->session);
-	pthread_join(ctrlr_device->tid, NULL);
+	real_pthread_join(ctrlr_device->tid, NULL);
 	TAILQ_REMOVE(&g_ctrlr_ctx_head, ctrlr_device, tailq);
 	spdk_bit_array_clear(g_ctrlr_started, ctrlr_device->index);
 	if (spdk_bit_array_count_set(g_ctrlr_started) == 0) {
@@ -1137,9 +1138,9 @@ nvme_cuse_start(struct spdk_nvme_ctrlr *ctrlr)
 		goto clear_and_free;
 	}
 
-	rv = pthread_create(&ctrlr_device->tid, NULL, cuse_thread, ctrlr_device);
+	rv = real_pthread_create(&ctrlr_device->tid, NULL, cuse_thread, ctrlr_device);
 	if (rv != 0) {
-		SPDK_ERRLOG("pthread_create failed\n");
+		SPDK_ERRLOG("real_pthread_create failed\n");
 		rv = -rv;
 		goto clear_and_free;
 	}
@@ -1207,18 +1208,18 @@ nvme_cuse_stop(struct spdk_nvme_ctrlr *ctrlr)
 {
 	struct cuse_device *ctrlr_device;
 
-	pthread_mutex_lock(&g_cuse_mtx);
+	real_pthread_mutex_lock(&g_cuse_mtx);
 
 	ctrlr_device = nvme_cuse_get_cuse_ctrlr_device(ctrlr);
 	if (!ctrlr_device) {
 		SPDK_ERRLOG("Cannot find associated CUSE device\n");
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return;
 	}
 
 	cuse_nvme_ctrlr_stop(ctrlr_device);
 
-	pthread_mutex_unlock(&g_cuse_mtx);
+	real_pthread_mutex_unlock(&g_cuse_mtx);
 }
 
 static void
@@ -1226,17 +1227,17 @@ nvme_cuse_update(struct spdk_nvme_ctrlr *ctrlr)
 {
 	struct cuse_device *ctrlr_device;
 
-	pthread_mutex_lock(&g_cuse_mtx);
+	real_pthread_mutex_lock(&g_cuse_mtx);
 
 	ctrlr_device = nvme_cuse_get_cuse_ctrlr_device(ctrlr);
 	if (!ctrlr_device) {
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return;
 	}
 
 	cuse_nvme_ctrlr_update_namespaces(ctrlr_device);
 
-	pthread_mutex_unlock(&g_cuse_mtx);
+	real_pthread_mutex_unlock(&g_cuse_mtx);
 }
 
 static struct nvme_io_msg_producer cuse_nvme_io_msg_producer = {
@@ -1255,14 +1256,14 @@ spdk_nvme_cuse_register(struct spdk_nvme_ctrlr *ctrlr)
 		return rc;
 	}
 
-	pthread_mutex_lock(&g_cuse_mtx);
+	real_pthread_mutex_lock(&g_cuse_mtx);
 
 	rc = nvme_cuse_start(ctrlr);
 	if (rc) {
 		nvme_io_msg_ctrlr_unregister(ctrlr, &cuse_nvme_io_msg_producer);
 	}
 
-	pthread_mutex_unlock(&g_cuse_mtx);
+	real_pthread_mutex_unlock(&g_cuse_mtx);
 
 	return rc;
 }
@@ -1272,18 +1273,18 @@ spdk_nvme_cuse_unregister(struct spdk_nvme_ctrlr *ctrlr)
 {
 	struct cuse_device *ctrlr_device;
 
-	pthread_mutex_lock(&g_cuse_mtx);
+	real_pthread_mutex_lock(&g_cuse_mtx);
 
 	ctrlr_device = nvme_cuse_get_cuse_ctrlr_device(ctrlr);
 	if (!ctrlr_device) {
 		SPDK_ERRLOG("Cannot find associated CUSE device\n");
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return -ENODEV;
 	}
 
 	cuse_nvme_ctrlr_stop(ctrlr_device);
 
-	pthread_mutex_unlock(&g_cuse_mtx);
+	real_pthread_mutex_unlock(&g_cuse_mtx);
 
 	nvme_io_msg_ctrlr_unregister(ctrlr, &cuse_nvme_io_msg_producer);
 
@@ -1302,23 +1303,23 @@ spdk_nvme_cuse_get_ctrlr_name(struct spdk_nvme_ctrlr *ctrlr, char *name, size_t 
 	struct cuse_device *ctrlr_device;
 	size_t req_len;
 
-	pthread_mutex_lock(&g_cuse_mtx);
+	real_pthread_mutex_lock(&g_cuse_mtx);
 
 	ctrlr_device = nvme_cuse_get_cuse_ctrlr_device(ctrlr);
 	if (!ctrlr_device) {
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return -ENODEV;
 	}
 
 	req_len = strnlen(ctrlr_device->dev_name, sizeof(ctrlr_device->dev_name));
 	if (*size < req_len) {
 		*size = req_len;
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return -ENOSPC;
 	}
 	snprintf(name, req_len + 1, "%s", ctrlr_device->dev_name);
 
-	pthread_mutex_unlock(&g_cuse_mtx);
+	real_pthread_mutex_unlock(&g_cuse_mtx);
 
 	return 0;
 }
@@ -1329,23 +1330,23 @@ spdk_nvme_cuse_get_ns_name(struct spdk_nvme_ctrlr *ctrlr, uint32_t nsid, char *n
 	struct cuse_device *ns_device;
 	size_t req_len;
 
-	pthread_mutex_lock(&g_cuse_mtx);
+	real_pthread_mutex_lock(&g_cuse_mtx);
 
 	ns_device = nvme_cuse_get_cuse_ns_device(ctrlr, nsid);
 	if (!ns_device) {
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return -ENODEV;
 	}
 
 	req_len = strnlen(ns_device->dev_name, sizeof(ns_device->dev_name));
 	if (*size < req_len) {
 		*size = req_len;
-		pthread_mutex_unlock(&g_cuse_mtx);
+		real_pthread_mutex_unlock(&g_cuse_mtx);
 		return -ENOSPC;
 	}
 	snprintf(name, req_len + 1, "%s", ns_device->dev_name);
 
-	pthread_mutex_unlock(&g_cuse_mtx);
+	real_pthread_mutex_unlock(&g_cuse_mtx);
 
 	return 0;
 }

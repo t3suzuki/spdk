@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2021 Intel Corporation.
  *   All rights reserved.
@@ -406,9 +407,9 @@ user_idxd_probe(void *cb_ctx, spdk_idxd_attach_cb attach_cb,
 	enum_ctx.attach_cb = attach_cb;
 	enum_ctx.cb_ctx = cb_ctx;
 
-	pthread_mutex_lock(&g_driver_lock);
+	real_pthread_mutex_lock(&g_driver_lock);
 	rc = spdk_pci_enumerate(spdk_pci_idxd_get_driver(), idxd_enum_cb, &enum_ctx);
-	pthread_mutex_unlock(&g_driver_lock);
+	real_pthread_mutex_unlock(&g_driver_lock);
 	assert(rc == 0);
 
 	return rc;
@@ -546,7 +547,7 @@ idxd_attach(struct spdk_pci_device *device)
 	user_idxd->device = device;
 	idxd->impl = &g_user_idxd_impl;
 	idxd->socket_id = device->socket_id;
-	pthread_mutex_init(&idxd->num_channels_lock, NULL);
+	real_pthread_mutex_init(&idxd->num_channels_lock, NULL);
 
 	/* Enable PCI busmaster. */
 	spdk_pci_device_cfg_read32(device, &cmd_reg, 4);

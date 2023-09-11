@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2018-2019, 2021 Mellanox Technologies LTD. All rights reserved.
@@ -184,7 +185,7 @@ nvmf_transport_create_async_done(void *cb_arg, struct spdk_nvmf_transport *trans
 		goto err;
 	}
 
-	pthread_mutex_init(&transport->mutex, NULL);
+	real_pthread_mutex_init(&transport->mutex, NULL);
 	TAILQ_INIT(&transport->listeners);
 	transport->ops = ctx->ops;
 	transport->opts = ctx->opts;
@@ -370,7 +371,7 @@ spdk_nvmf_transport_destroy(struct spdk_nvmf_transport *transport,
 		spdk_iobuf_unregister_module(transport->iobuf_name);
 	}
 
-	pthread_mutex_destroy(&transport->mutex);
+	real_pthread_mutex_destroy(&transport->mutex);
 	return transport->ops->destroy(transport, cb_fn, cb_arg);
 }
 
@@ -406,9 +407,9 @@ spdk_nvmf_transport_listen(struct spdk_nvmf_transport *transport,
 		listener->ref = 1;
 		listener->trid = *trid;
 		TAILQ_INSERT_TAIL(&transport->listeners, listener, link);
-		pthread_mutex_lock(&transport->mutex);
+		real_pthread_mutex_lock(&transport->mutex);
 		rc = transport->ops->listen(transport, &listener->trid, opts);
-		pthread_mutex_unlock(&transport->mutex);
+		real_pthread_mutex_unlock(&transport->mutex);
 		if (rc != 0) {
 			TAILQ_REMOVE(&transport->listeners, listener, link);
 			free(listener);
@@ -434,9 +435,9 @@ spdk_nvmf_transport_stop_listen(struct spdk_nvmf_transport *transport,
 
 	if (--listener->ref == 0) {
 		TAILQ_REMOVE(&transport->listeners, listener, link);
-		pthread_mutex_lock(&transport->mutex);
+		real_pthread_mutex_lock(&transport->mutex);
 		transport->ops->stop_listen(transport, trid);
-		pthread_mutex_unlock(&transport->mutex);
+		real_pthread_mutex_unlock(&transport->mutex);
 		free(listener);
 	}
 
@@ -567,9 +568,9 @@ nvmf_transport_poll_group_create(struct spdk_nvmf_transport *transport,
 	uint32_t buf_cache_size, small_cache_size, large_cache_size;
 	int rc;
 
-	pthread_mutex_lock(&transport->mutex);
+	real_pthread_mutex_lock(&transport->mutex);
 	tgroup = transport->ops->poll_group_create(transport, group);
-	pthread_mutex_unlock(&transport->mutex);
+	real_pthread_mutex_unlock(&transport->mutex);
 	if (!tgroup) {
 		return NULL;
 	}
@@ -634,9 +635,9 @@ nvmf_transport_get_optimal_poll_group(struct spdk_nvmf_transport *transport,
 	struct spdk_nvmf_transport_poll_group *tgroup;
 
 	if (transport->ops->get_optimal_poll_group) {
-		pthread_mutex_lock(&transport->mutex);
+		real_pthread_mutex_lock(&transport->mutex);
 		tgroup = transport->ops->get_optimal_poll_group(qpair);
-		pthread_mutex_unlock(&transport->mutex);
+		real_pthread_mutex_unlock(&transport->mutex);
 
 		return tgroup;
 	} else {
@@ -664,9 +665,9 @@ nvmf_transport_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
 		ch = group->buf_cache;
 	}
 
-	pthread_mutex_lock(&transport->mutex);
+	real_pthread_mutex_lock(&transport->mutex);
 	transport->ops->poll_group_destroy(group);
-	pthread_mutex_unlock(&transport->mutex);
+	real_pthread_mutex_unlock(&transport->mutex);
 
 	if (transport->opts.buf_cache_size) {
 		spdk_iobuf_channel_fini(&ch);

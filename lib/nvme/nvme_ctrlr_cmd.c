@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation. All rights reserved.
  *   Copyright (c) 2021 Mellanox Technologies LTD. All rights reserved.
@@ -712,7 +713,7 @@ spdk_nvme_ctrlr_cmd_abort_ext(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_qp
 		return -EINVAL;
 	}
 
-	pthread_mutex_lock(&ctrlr->ctrlr_lock);
+	real_pthread_mutex_lock(&ctrlr->ctrlr_lock);
 
 	if (qpair == NULL) {
 		qpair = ctrlr->adminq;
@@ -720,7 +721,7 @@ spdk_nvme_ctrlr_cmd_abort_ext(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_qp
 
 	parent = nvme_allocate_request_null(ctrlr->adminq, cb_fn, cb_arg);
 	if (parent == NULL) {
-		pthread_mutex_unlock(&ctrlr->ctrlr_lock);
+		real_pthread_mutex_unlock(&ctrlr->ctrlr_lock);
 
 		return -ENOMEM;
 	}
@@ -801,7 +802,7 @@ spdk_nvme_ctrlr_cmd_abort_ext(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_qp
 		nvme_free_request(parent);
 	}
 
-	pthread_mutex_unlock(&ctrlr->ctrlr_lock);
+	real_pthread_mutex_unlock(&ctrlr->ctrlr_lock);
 	return rc;
 }
 

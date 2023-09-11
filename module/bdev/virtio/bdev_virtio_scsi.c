@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -271,9 +272,9 @@ virtio_scsi_dev_init(struct virtio_scsi_dev *svdev, uint16_t max_queues, uint64_
 				sizeof(struct bdev_virtio_io_channel),
 				svdev->vdev.name);
 
-	pthread_mutex_lock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_lock(&g_virtio_scsi_mutex);
 	TAILQ_INSERT_TAIL(&g_virtio_scsi_devs, svdev, tailq);
-	pthread_mutex_unlock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 	return 0;
 }
 
@@ -400,7 +401,7 @@ bdev_virtio_scsi_config_json(struct spdk_json_write_ctx *w)
 {
 	struct virtio_scsi_dev *svdev;
 
-	pthread_mutex_lock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_lock(&g_virtio_scsi_mutex);
 	TAILQ_FOREACH(svdev, &g_virtio_scsi_devs, tailq) {
 		spdk_json_write_object_begin(w);
 
@@ -418,7 +419,7 @@ bdev_virtio_scsi_config_json(struct spdk_json_write_ctx *w)
 		spdk_json_write_object_end(w);
 
 	}
-	pthread_mutex_unlock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 
 	return 0;
 }
@@ -1699,9 +1700,9 @@ _virtio_scsi_dev_unregister_cb(void *io_device)
 	virtio_dev_stop(vdev);
 	virtio_dev_destruct(vdev);
 
-	pthread_mutex_lock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_lock(&g_virtio_scsi_mutex);
 	TAILQ_REMOVE(&g_virtio_scsi_devs, svdev, tailq);
-	pthread_mutex_unlock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 
 	remove_cb = svdev->remove_cb;
 	remove_ctx = svdev->remove_ctx;
@@ -1771,9 +1772,9 @@ bdev_virtio_finish(void)
 
 	g_bdev_virtio_finish = true;
 
-	pthread_mutex_lock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_lock(&g_virtio_scsi_mutex);
 	if (TAILQ_EMPTY(&g_virtio_scsi_devs)) {
-		pthread_mutex_unlock(&g_virtio_scsi_mutex);
+		real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 		spdk_bdev_module_fini_done();
 		return;
 	}
@@ -1782,7 +1783,7 @@ bdev_virtio_finish(void)
 	TAILQ_FOREACH_SAFE(svdev, &g_virtio_scsi_devs, tailq, next) {
 		virtio_scsi_dev_remove(svdev, NULL, NULL);
 	}
-	pthread_mutex_unlock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 }
 
 int
@@ -1904,7 +1905,7 @@ bdev_virtio_scsi_dev_remove(const char *name, bdev_virtio_remove_cb cb_fn, void 
 {
 	struct virtio_scsi_dev *svdev;
 
-	pthread_mutex_lock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_lock(&g_virtio_scsi_mutex);
 	TAILQ_FOREACH(svdev, &g_virtio_scsi_devs, tailq) {
 		if (strcmp(svdev->vdev.name, name) == 0) {
 			break;
@@ -1912,13 +1913,13 @@ bdev_virtio_scsi_dev_remove(const char *name, bdev_virtio_remove_cb cb_fn, void 
 	}
 
 	if (svdev == NULL) {
-		pthread_mutex_unlock(&g_virtio_scsi_mutex);
+		real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 		SPDK_ERRLOG("Cannot find Virtio-SCSI device named '%s'\n", name);
 		return -ENODEV;
 	}
 
 	virtio_scsi_dev_remove(svdev, cb_fn, cb_arg);
-	pthread_mutex_unlock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 
 	return 0;
 }
@@ -1930,7 +1931,7 @@ bdev_virtio_scsi_dev_list(struct spdk_json_write_ctx *w)
 
 	spdk_json_write_array_begin(w);
 
-	pthread_mutex_lock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_lock(&g_virtio_scsi_mutex);
 	TAILQ_FOREACH(svdev, &g_virtio_scsi_devs, tailq) {
 		spdk_json_write_object_begin(w);
 
@@ -1940,7 +1941,7 @@ bdev_virtio_scsi_dev_list(struct spdk_json_write_ctx *w)
 
 		spdk_json_write_object_end(w);
 	}
-	pthread_mutex_unlock(&g_virtio_scsi_mutex);
+	real_pthread_mutex_unlock(&g_virtio_scsi_mutex);
 
 	spdk_json_write_array_end(w);
 }

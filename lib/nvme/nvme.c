@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation. All rights reserved.
  *   Copyright (c) 2020 Mellanox Technologies LTD. All rights reserved.
@@ -514,7 +515,7 @@ nvme_robust_mutex_init_shared(pthread_mutex_t *mtx)
 	int rc = 0;
 
 #ifdef __FreeBSD__
-	pthread_mutex_init(mtx, NULL);
+	real_pthread_mutex_init(mtx, NULL);
 #else
 	pthread_mutexattr_t attr;
 
@@ -523,7 +524,7 @@ nvme_robust_mutex_init_shared(pthread_mutex_t *mtx)
 	}
 	if (pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED) ||
 	    pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST) ||
-	    pthread_mutex_init(mtx, &attr)) {
+	    real_pthread_mutex_init(mtx, &attr)) {
 		rc = -1;
 	}
 	pthread_mutexattr_destroy(&attr);
@@ -546,7 +547,7 @@ nvme_driver_init(void)
 	 * mutex is initialized, we can unlock this mutex and use that
 	 * one instead.
 	 */
-	pthread_mutex_lock(&g_init_mutex);
+	real_pthread_mutex_lock(&g_init_mutex);
 
 	/* Each process needs its own pid. */
 	g_spdk_nvme_pid = getpid();
@@ -560,7 +561,7 @@ nvme_driver_init(void)
 	if (spdk_process_is_primary()) {
 		/* The unique named memzone already reserved. */
 		if (g_spdk_nvme_driver != NULL) {
-			pthread_mutex_unlock(&g_init_mutex);
+			real_pthread_mutex_unlock(&g_init_mutex);
 			return 0;
 		} else {
 			g_spdk_nvme_driver = spdk_memzone_reserve(SPDK_NVME_DRIVER_NAME,
@@ -570,7 +571,7 @@ nvme_driver_init(void)
 
 		if (g_spdk_nvme_driver == NULL) {
 			SPDK_ERRLOG("primary process failed to reserve memory\n");
-			pthread_mutex_unlock(&g_init_mutex);
+			real_pthread_mutex_unlock(&g_init_mutex);
 			return -1;
 		}
 	} else {
@@ -588,16 +589,16 @@ nvme_driver_init(void)
 			}
 			if (g_spdk_nvme_driver->initialized == false) {
 				SPDK_ERRLOG("timeout waiting for primary process to init\n");
-				pthread_mutex_unlock(&g_init_mutex);
+				real_pthread_mutex_unlock(&g_init_mutex);
 				return -1;
 			}
 		} else {
 			SPDK_ERRLOG("primary process is not started yet\n");
-			pthread_mutex_unlock(&g_init_mutex);
+			real_pthread_mutex_unlock(&g_init_mutex);
 			return -1;
 		}
 
-		pthread_mutex_unlock(&g_init_mutex);
+		real_pthread_mutex_unlock(&g_init_mutex);
 		return 0;
 	}
 
@@ -611,14 +612,14 @@ nvme_driver_init(void)
 	if (ret != 0) {
 		SPDK_ERRLOG("failed to initialize mutex\n");
 		spdk_memzone_free(SPDK_NVME_DRIVER_NAME);
-		pthread_mutex_unlock(&g_init_mutex);
+		real_pthread_mutex_unlock(&g_init_mutex);
 		return ret;
 	}
 
 	/* The lock in the shared g_spdk_nvme_driver object is now ready to
 	 * be used - so we can unlock the g_init_mutex here.
 	 */
-	pthread_mutex_unlock(&g_init_mutex);
+	real_pthread_mutex_unlock(&g_init_mutex);
 	nvme_robust_mutex_lock(&g_spdk_nvme_driver->lock);
 
 	g_spdk_nvme_driver->initialized = false;

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -305,13 +306,13 @@ iscsi_init_grp_register(struct spdk_iscsi_init_grp *ig)
 
 	assert(ig != NULL);
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	tmp = iscsi_init_grp_find_by_tag(ig->tag);
 	if (tmp == NULL) {
 		TAILQ_INSERT_TAIL(&g_iscsi.ig_head, ig, tailq);
 		rc = 0;
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	return rc;
 }
@@ -381,10 +382,10 @@ iscsi_init_grp_add_initiators_from_initiator_list(int tag,
 		      "add initiator to initiator group: tag=%d, #initiators=%d, #masks=%d\n",
 		      tag, num_initiator_names, num_initiator_masks);
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	ig = iscsi_init_grp_find_by_tag(tag);
 	if (!ig) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 		SPDK_ERRLOG("initiator group (%d) is not found\n", tag);
 		return rc;
 	}
@@ -405,7 +406,7 @@ iscsi_init_grp_add_initiators_from_initiator_list(int tag,
 	}
 
 error:
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return rc;
 }
 
@@ -423,10 +424,10 @@ iscsi_init_grp_delete_initiators_from_initiator_list(int tag,
 		      "delete initiator from initiator group: tag=%d, #initiators=%d, #masks=%d\n",
 		      tag, num_initiator_names, num_initiator_masks);
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	ig = iscsi_init_grp_find_by_tag(tag);
 	if (!ig) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 		SPDK_ERRLOG("initiator group (%d) is not found\n", tag);
 		return rc;
 	}
@@ -448,7 +449,7 @@ iscsi_init_grp_delete_initiators_from_initiator_list(int tag,
 	}
 
 error:
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return rc;
 }
 
@@ -484,12 +485,12 @@ iscsi_init_grps_destroy(void)
 	struct spdk_iscsi_init_grp *ig, *tmp;
 
 	SPDK_DEBUGLOG(iscsi, "iscsi_init_grp_array_destroy\n");
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_FOREACH_SAFE(ig, &g_iscsi.ig_head, tailq, tmp) {
 		TAILQ_REMOVE(&g_iscsi.ig_head, ig, tailq);
 		iscsi_init_grp_destroy(ig);
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 }
 
 struct spdk_iscsi_init_grp *
@@ -497,15 +498,15 @@ iscsi_init_grp_unregister(int tag)
 {
 	struct spdk_iscsi_init_grp *ig;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_FOREACH(ig, &g_iscsi.ig_head, tailq) {
 		if (ig->tag == tag) {
 			TAILQ_REMOVE(&g_iscsi.ig_head, ig, tailq);
-			pthread_mutex_unlock(&g_iscsi.mutex);
+			real_pthread_mutex_unlock(&g_iscsi.mutex);
 			return ig;
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return NULL;
 }
 

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -386,7 +387,7 @@ iscsi_send_tgts(struct spdk_iscsi_conn *conn, const char *iiqn,
 		return total;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_FOREACH(target, &g_iscsi.target_head, tailq) {
 		if (strcasecmp(tiqn, "ALL") != 0
 		    && strcasecmp(tiqn, target->name) != 0) {
@@ -420,7 +421,7 @@ iscsi_send_tgts(struct spdk_iscsi_conn *conn, const char *iiqn,
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	/* Only set it when it is not successfully completed */
 	if (no_buf_space) {
@@ -451,16 +452,16 @@ iscsi_find_tgt_node(const char *target_name)
 static int
 iscsi_tgt_node_register(struct spdk_iscsi_tgt_node *target)
 {
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	if (iscsi_find_tgt_node(target->name) != NULL) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 		return -EEXIST;
 	}
 
 	TAILQ_INSERT_TAIL(&g_iscsi.target_head, target, tailq);
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return 0;
 }
 
@@ -681,11 +682,11 @@ _iscsi_tgt_node_destruct(void *cb_arg, int rc)
 		return;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	iscsi_tgt_node_delete_all_pg_maps(target);
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
-	pthread_mutex_destroy(&target->mutex);
+	real_pthread_mutex_destroy(&target->mutex);
 	free(target);
 
 	if (destruct_cb_fn) {
@@ -836,7 +837,7 @@ iscsi_target_node_add_pg_ig_maps(struct spdk_iscsi_tgt_node *target,
 	uint16_t i;
 	int rc;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	for (i = 0; i < num_maps; i++) {
 		rc = iscsi_tgt_node_add_pg_ig_map(target, pg_tag_list[i],
 						  ig_tag_list[i]);
@@ -845,7 +846,7 @@ iscsi_target_node_add_pg_ig_maps(struct spdk_iscsi_tgt_node *target,
 			goto invalid;
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return 0;
 
 invalid:
@@ -853,7 +854,7 @@ invalid:
 		iscsi_tgt_node_delete_pg_ig_map(target, pg_tag_list[i - 1],
 						ig_tag_list[i - 1]);
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return -1;
 }
 
@@ -864,7 +865,7 @@ iscsi_target_node_remove_pg_ig_maps(struct spdk_iscsi_tgt_node *target,
 	uint16_t i;
 	int rc;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	for (i = 0; i < num_maps; i++) {
 		rc = iscsi_tgt_node_delete_pg_ig_map(target, pg_tag_list[i],
 						     ig_tag_list[i]);
@@ -873,7 +874,7 @@ iscsi_target_node_remove_pg_ig_maps(struct spdk_iscsi_tgt_node *target,
 			goto invalid;
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return 0;
 
 invalid:
@@ -885,7 +886,7 @@ invalid:
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	return -1;
 }
 
@@ -1084,7 +1085,7 @@ struct spdk_iscsi_tgt_node *iscsi_tgt_node_construct(int target_index,
 		return NULL;
 	}
 
-	rc = pthread_mutex_init(&target->mutex, NULL);
+	rc = real_pthread_mutex_init(&target->mutex, NULL);
 	if (rc != 0) {
 		SPDK_ERRLOG("tgt_node%d: mutex_init() failed\n", target->num);
 		iscsi_tgt_node_destruct(target, NULL, NULL);
@@ -1150,18 +1151,18 @@ iscsi_shutdown_tgt_nodes(void)
 {
 	struct spdk_iscsi_tgt_node *target;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	while (!TAILQ_EMPTY(&g_iscsi.target_head)) {
 		target = TAILQ_FIRST(&g_iscsi.target_head);
 		TAILQ_REMOVE(&g_iscsi.target_head, target, tailq);
 
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		iscsi_tgt_node_destruct(target, NULL, NULL);
 
-		pthread_mutex_lock(&g_iscsi.mutex);
+		real_pthread_mutex_lock(&g_iscsi.mutex);
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 }
 
 void
@@ -1170,17 +1171,17 @@ iscsi_shutdown_tgt_node_by_name(const char *target_name,
 {
 	struct spdk_iscsi_tgt_node *target;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	target = iscsi_find_tgt_node(target_name);
 	if (target != NULL) {
 		iscsi_tgt_node_unregister(target);
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		iscsi_tgt_node_destruct(target, cb_fn, cb_arg);
 
 		return;
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	if (cb_fn) {
 		cb_fn(cb_arg, -ENOENT);
@@ -1225,7 +1226,7 @@ iscsi_tgt_node_delete_map(struct spdk_iscsi_portal_grp *portal_group,
 {
 	struct spdk_iscsi_tgt_node *target;
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	TAILQ_FOREACH(target, &g_iscsi.target_head, tailq) {
 		if (portal_group) {
 			iscsi_tgt_node_delete_pg_map(target, portal_group);
@@ -1234,7 +1235,7 @@ iscsi_tgt_node_delete_map(struct spdk_iscsi_portal_grp *portal_group,
 			iscsi_tgt_node_delete_ig_maps(target, initiator_group);
 		}
 	}
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 }
 
 int
@@ -1280,12 +1281,12 @@ iscsi_tgt_node_set_chap_params(struct spdk_iscsi_tgt_node *target,
 		return -EINVAL;
 	}
 
-	pthread_mutex_lock(&target->mutex);
+	real_pthread_mutex_lock(&target->mutex);
 	target->disable_chap = disable_chap;
 	target->require_chap = require_chap;
 	target->mutual_chap = mutual_chap;
 	target->chap_group = chap_group;
-	pthread_mutex_unlock(&target->mutex);
+	real_pthread_mutex_unlock(&target->mutex);
 
 	return 0;
 }

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019-2021 Mellanox Technologies LTD. All rights reserved.
@@ -2635,7 +2636,7 @@ rpc_bdev_nvme_get_path_iostat(struct spdk_jsonrpc_request *request,
 	bdev = spdk_bdev_desc_get_bdev(desc);
 	nbdev = bdev->ctxt;
 
-	pthread_mutex_lock(&nbdev->mutex);
+	real_pthread_mutex_lock(&nbdev->mutex);
 	if (nbdev->ref == 0) {
 		rc = -ENOENT;
 		goto err;
@@ -2659,7 +2660,7 @@ rpc_bdev_nvme_get_path_iostat(struct spdk_jsonrpc_request *request,
 		memcpy(&path_stat[i].stat, nvme_ns->stat, sizeof(struct spdk_bdev_io_stat));
 		i++;
 	}
-	pthread_mutex_unlock(&nbdev->mutex);
+	real_pthread_mutex_unlock(&nbdev->mutex);
 
 	ctx->request = request;
 	ctx->desc = desc;
@@ -2673,7 +2674,7 @@ rpc_bdev_nvme_get_path_iostat(struct spdk_jsonrpc_request *request,
 	return;
 
 err:
-	pthread_mutex_unlock(&nbdev->mutex);
+	real_pthread_mutex_unlock(&nbdev->mutex);
 	spdk_jsonrpc_send_error_response(request, rc, spdk_strerror(-rc));
 	spdk_bdev_close(desc);
 	free(ctx);

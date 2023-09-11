@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   All rights reserved.
@@ -190,13 +191,13 @@ typedef struct {
 static inline int
 env_mutex_init(env_mutex *mutex)
 {
-	return !!pthread_mutex_init(&mutex->m, NULL);
+	return !!real_pthread_mutex_init(&mutex->m, NULL);
 }
 
 static inline void
 env_mutex_lock(env_mutex *mutex)
 {
-	ENV_BUG_ON(pthread_mutex_lock(&mutex->m));
+	ENV_BUG_ON(real_pthread_mutex_lock(&mutex->m));
 }
 
 static inline int
@@ -209,13 +210,13 @@ env_mutex_lock_interruptible(env_mutex *mutex)
 static inline int
 env_mutex_trylock(env_mutex *mutex)
 {
-	return pthread_mutex_trylock(&mutex->m) ? -OCF_ERR_NO_LOCK : 0;
+	return real_pthread_mutex_trylock(&mutex->m) ? -OCF_ERR_NO_LOCK : 0;
 }
 
 static inline void
 env_mutex_unlock(env_mutex *mutex)
 {
-	ENV_BUG_ON(pthread_mutex_unlock(&mutex->m));
+	ENV_BUG_ON(real_pthread_mutex_unlock(&mutex->m));
 }
 
 static inline int
@@ -232,7 +233,7 @@ env_mutex_is_locked(env_mutex *mutex)
 static inline int
 env_mutex_destroy(env_mutex *mutex)
 {
-	if (pthread_mutex_destroy(&mutex->m)) {
+	if (real_pthread_mutex_destroy(&mutex->m)) {
 		return 1;
 	}
 
@@ -250,7 +251,7 @@ env_rmutex_init(env_rmutex *rmutex)
 
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-	pthread_mutex_init(&rmutex->m, &attr);
+	real_pthread_mutex_init(&rmutex->m, &attr);
 
 	return 0;
 }
@@ -299,19 +300,19 @@ typedef struct {
 static inline int
 env_rwsem_init(env_rwsem *s)
 {
-	return !!pthread_rwlock_init(&s->lock, NULL);
+	return !!real_pthread_rwlock_init(&s->lock, NULL);
 }
 
 static inline void
 env_rwsem_up_read(env_rwsem *s)
 {
-	ENV_BUG_ON(pthread_rwlock_unlock(&s->lock));
+	ENV_BUG_ON(real_pthread_rwlock_unlock(&s->lock));
 }
 
 static inline void
 env_rwsem_down_read(env_rwsem *s)
 {
-	ENV_BUG_ON(pthread_rwlock_rdlock(&s->lock));
+	ENV_BUG_ON(real_pthread_rwlock_rdlock(&s->lock));
 }
 
 static inline int
@@ -323,13 +324,13 @@ env_rwsem_down_read_trylock(env_rwsem *s)
 static inline void
 env_rwsem_up_write(env_rwsem *s)
 {
-	ENV_BUG_ON(pthread_rwlock_unlock(&s->lock));
+	ENV_BUG_ON(real_pthread_rwlock_unlock(&s->lock));
 }
 
 static inline void
 env_rwsem_down_write(env_rwsem *s)
 {
-	ENV_BUG_ON(pthread_rwlock_wrlock(&s->lock));
+	ENV_BUG_ON(real_pthread_rwlock_wrlock(&s->lock));
 }
 
 static inline int
@@ -352,18 +353,18 @@ env_rwsem_is_locked(env_rwsem *s)
 static inline int
 env_rwsem_down_read_interruptible(env_rwsem *s)
 {
-	return pthread_rwlock_rdlock(&s->lock);
+	return real_pthread_rwlock_rdlock(&s->lock);
 }
 static inline int
 env_rwsem_down_write_interruptible(env_rwsem *s)
 {
-	return pthread_rwlock_wrlock(&s->lock);
+	return real_pthread_rwlock_wrlock(&s->lock);
 }
 
 static inline int
 env_rwsem_destroy(env_rwsem *s)
 {
-	return pthread_rwlock_destroy(&s->lock);
+	return real_pthread_rwlock_destroy(&s->lock);
 }
 
 /* *** ATOMIC VARIABLES *** */
@@ -637,37 +638,37 @@ typedef struct {
 static inline void
 env_rwlock_init(env_rwlock *l)
 {
-	ENV_BUG_ON(pthread_rwlock_init(&l->lock, NULL));
+	ENV_BUG_ON(real_pthread_rwlock_init(&l->lock, NULL));
 }
 
 static inline void
 env_rwlock_read_lock(env_rwlock *l)
 {
-	ENV_BUG_ON(pthread_rwlock_rdlock(&l->lock));
+	ENV_BUG_ON(real_pthread_rwlock_rdlock(&l->lock));
 }
 
 static inline void
 env_rwlock_read_unlock(env_rwlock *l)
 {
-	ENV_BUG_ON(pthread_rwlock_unlock(&l->lock));
+	ENV_BUG_ON(real_pthread_rwlock_unlock(&l->lock));
 }
 
 static inline void
 env_rwlock_write_lock(env_rwlock *l)
 {
-	ENV_BUG_ON(pthread_rwlock_wrlock(&l->lock));
+	ENV_BUG_ON(real_pthread_rwlock_wrlock(&l->lock));
 }
 
 static inline void
 env_rwlock_write_unlock(env_rwlock *l)
 {
-	ENV_BUG_ON(pthread_rwlock_unlock(&l->lock));
+	ENV_BUG_ON(real_pthread_rwlock_unlock(&l->lock));
 }
 
 static inline void
 env_rwlock_destroy(env_rwlock *l)
 {
-	ENV_BUG_ON(pthread_rwlock_destroy(&l->lock));
+	ENV_BUG_ON(real_pthread_rwlock_destroy(&l->lock));
 }
 
 static inline void

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation.
  *   All rights reserved.
@@ -19,12 +20,12 @@ nvme_io_msg_send(struct spdk_nvme_ctrlr *ctrlr, uint32_t nsid, spdk_nvme_io_msg_
 	struct spdk_nvme_io_msg *io;
 
 	/* Protect requests ring against preemptive producers */
-	pthread_mutex_lock(&ctrlr->external_io_msgs_lock);
+	real_pthread_mutex_lock(&ctrlr->external_io_msgs_lock);
 
 	io = (struct spdk_nvme_io_msg *)calloc(1, sizeof(struct spdk_nvme_io_msg));
 	if (!io) {
 		SPDK_ERRLOG("IO msg allocation failed.");
-		pthread_mutex_unlock(&ctrlr->external_io_msgs_lock);
+		real_pthread_mutex_unlock(&ctrlr->external_io_msgs_lock);
 		return -ENOMEM;
 	}
 
@@ -37,11 +38,11 @@ nvme_io_msg_send(struct spdk_nvme_ctrlr *ctrlr, uint32_t nsid, spdk_nvme_io_msg_
 	if (rc != 1) {
 		assert(false);
 		free(io);
-		pthread_mutex_unlock(&ctrlr->external_io_msgs_lock);
+		real_pthread_mutex_unlock(&ctrlr->external_io_msgs_lock);
 		return -ENOMEM;
 	}
 
-	pthread_mutex_unlock(&ctrlr->external_io_msgs_lock);
+	real_pthread_mutex_unlock(&ctrlr->external_io_msgs_lock);
 
 	return 0;
 }
@@ -116,7 +117,7 @@ nvme_io_msg_ctrlr_register(struct spdk_nvme_ctrlr *ctrlr,
 		return 0;
 	}
 
-	pthread_mutex_init(&ctrlr->external_io_msgs_lock, NULL);
+	real_pthread_mutex_init(&ctrlr->external_io_msgs_lock, NULL);
 
 	/**
 	 * Initialize ring and qpair for controller
@@ -172,7 +173,7 @@ nvme_io_msg_ctrlr_detach(struct spdk_nvme_ctrlr *ctrlr)
 		ctrlr->external_io_msgs_qpair = NULL;
 	}
 
-	pthread_mutex_destroy(&ctrlr->external_io_msgs_lock);
+	real_pthread_mutex_destroy(&ctrlr->external_io_msgs_lock);
 }
 
 void

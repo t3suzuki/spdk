@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (c) croit GmbH.
  *   All rights reserved.
@@ -899,15 +900,15 @@ bdev_daos_get_engine(void)
 {
 	int rc = 0;
 
-	pthread_mutex_lock(&g_bdev_daos_init_mutex);
+	real_pthread_mutex_lock(&g_bdev_daos_init_mutex);
 	if (g_bdev_daos_init_count++ > 0) {
-		pthread_mutex_unlock(&g_bdev_daos_init_mutex);
+		real_pthread_mutex_unlock(&g_bdev_daos_init_mutex);
 		return 0;
 	}
 	SPDK_DEBUGLOG(bdev_daos, "initializing DAOS engine\n");
 
 	rc = daos_init();
-	pthread_mutex_unlock(&g_bdev_daos_init_mutex);
+	real_pthread_mutex_unlock(&g_bdev_daos_init_mutex);
 
 	if (rc != -DER_ALREADY && rc) {
 		return rc;
@@ -920,15 +921,15 @@ bdev_daos_put_engine(void)
 {
 	int rc = 0;
 
-	pthread_mutex_lock(&g_bdev_daos_init_mutex);
+	real_pthread_mutex_lock(&g_bdev_daos_init_mutex);
 	if (--g_bdev_daos_init_count > 0) {
-		pthread_mutex_unlock(&g_bdev_daos_init_mutex);
+		real_pthread_mutex_unlock(&g_bdev_daos_init_mutex);
 		return 0;
 	}
 	SPDK_DEBUGLOG(bdev_daos, "de-initializing DAOS engine\n");
 
 	rc = daos_fini();
-	pthread_mutex_unlock(&g_bdev_daos_init_mutex);
+	real_pthread_mutex_unlock(&g_bdev_daos_init_mutex);
 
 	return rc;
 }

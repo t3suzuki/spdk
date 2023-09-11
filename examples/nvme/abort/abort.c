@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   All rights reserved.
@@ -296,7 +297,7 @@ abort_task(struct perf_task *task)
 	int			rc;
 
 	/* Hold mutex to guard ctrlr_ctx->current_queue_depth. */
-	pthread_mutex_lock(&ctrlr_ctx->mutex);
+	real_pthread_mutex_lock(&ctrlr_ctx->mutex);
 
 	rc = spdk_nvme_ctrlr_cmd_abort_ext(ctrlr_ctx->ctrlr, ns_ctx->qpair, task, abort_complete,
 					   ctrlr_ctx);
@@ -308,7 +309,7 @@ abort_task(struct perf_task *task)
 		ctrlr_ctx->abort_submitted++;
 	}
 
-	pthread_mutex_unlock(&ctrlr_ctx->mutex);
+	real_pthread_mutex_unlock(&ctrlr_ctx->mutex);
 }
 
 static __thread unsigned int seed = 0;
@@ -463,9 +464,9 @@ work_fn(void *arg)
 		if (worker->lcore == g_main_core) {
 			TAILQ_FOREACH(ctrlr_ctx, &worker->ctrlr_ctx, link) {
 				/* Hold mutex to guard ctrlr_ctx->current_queue_depth. */
-				pthread_mutex_lock(&ctrlr_ctx->mutex);
+				real_pthread_mutex_lock(&ctrlr_ctx->mutex);
 				rc = spdk_nvme_ctrlr_process_admin_completions(ctrlr_ctx->ctrlr);
-				pthread_mutex_unlock(&ctrlr_ctx->mutex);
+				real_pthread_mutex_unlock(&ctrlr_ctx->mutex);
 				if (rc < 0) {
 					fprintf(stderr, "spdk_nvme_ctrlr_process_admin_completions "
 						"returned %d\n", rc);
@@ -505,12 +506,12 @@ work_fn(void *arg)
 			unfinished_ctx = 0;
 
 			TAILQ_FOREACH(ctrlr_ctx, &worker->ctrlr_ctx, link) {
-				pthread_mutex_lock(&ctrlr_ctx->mutex);
+				real_pthread_mutex_lock(&ctrlr_ctx->mutex);
 				if (ctrlr_ctx->current_queue_depth > 0) {
 					rc = spdk_nvme_ctrlr_process_admin_completions(ctrlr_ctx->ctrlr);
 					unfinished_ctx++;
 				}
-				pthread_mutex_unlock(&ctrlr_ctx->mutex);
+				real_pthread_mutex_unlock(&ctrlr_ctx->mutex);
 				if (rc < 0) {
 					fprintf(stderr, "spdk_nvme_ctrlr_process_admin_completions "
 						"returned %d\n", rc);
@@ -971,7 +972,7 @@ associate_main_worker_with_ctrlr(void)
 			return -1;
 		}
 
-		pthread_mutex_init(&ctrlr_ctx->mutex, NULL);
+		real_pthread_mutex_init(&ctrlr_ctx->mutex, NULL);
 		ctrlr_ctx->entry = entry;
 		ctrlr_ctx->ctrlr = entry->ctrlr;
 

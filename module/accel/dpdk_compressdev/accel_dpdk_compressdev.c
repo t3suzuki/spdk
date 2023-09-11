@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2018 Intel Corporation.
  *   All rights reserved.
@@ -746,7 +747,7 @@ compress_create_cb(void *io_device, void *ctx_buf)
 	chan->poller = SPDK_POLLER_REGISTER(comp_dev_poller, chan, 0);
 	TAILQ_INIT(&chan->queued_tasks);
 
-	pthread_mutex_lock(&g_comp_device_qp_lock);
+	real_pthread_mutex_lock(&g_comp_device_qp_lock);
 	TAILQ_FOREACH(device_qp, &g_comp_device_qp, link) {
 		if (strcmp(device_qp->device->cdev_info.driver_name, chan->drv_name) == 0) {
 			if (device_qp->chan == NULL) {
@@ -756,7 +757,7 @@ compress_create_cb(void *io_device, void *ctx_buf)
 			}
 		}
 	}
-	pthread_mutex_unlock(&g_comp_device_qp_lock);
+	real_pthread_mutex_unlock(&g_comp_device_qp_lock);
 
 	if (chan->device_qp == NULL) {
 		SPDK_ERRLOG("out of qpairs, cannot assign one\n");
@@ -801,10 +802,10 @@ compress_destroy_cb(void *io_device, void *ctx_buf)
 
 	spdk_poller_unregister(&chan->poller);
 
-	pthread_mutex_lock(&g_comp_device_qp_lock);
+	real_pthread_mutex_lock(&g_comp_device_qp_lock);
 	chan->device_qp = NULL;
 	device_qp->chan = NULL;
-	pthread_mutex_unlock(&g_comp_device_qp_lock);
+	real_pthread_mutex_unlock(&g_comp_device_qp_lock);
 }
 
 static size_t
@@ -870,7 +871,7 @@ _device_unregister_cb(void *io_device)
 		free(dev_qp);
 	}
 
-	pthread_mutex_destroy(&g_comp_device_qp_lock);
+	real_pthread_mutex_destroy(&g_comp_device_qp_lock);
 
 	rte_mempool_free(g_comp_op_mp);
 	rte_mempool_free(g_mbuf_mp);

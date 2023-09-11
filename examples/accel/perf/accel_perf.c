@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   All rights reserved.
@@ -277,14 +278,14 @@ unregister_worker(void *arg1)
 	free(worker->task_base);
 	spdk_put_io_channel(worker->ch);
 	spdk_thread_exit(spdk_get_thread());
-	pthread_mutex_lock(&g_workers_lock);
+	real_pthread_mutex_lock(&g_workers_lock);
 	assert(g_num_workers >= 1);
 	if (--g_num_workers == 0) {
-		pthread_mutex_unlock(&g_workers_lock);
+		real_pthread_mutex_unlock(&g_workers_lock);
 		g_rc = dump_result();
 		spdk_app_stop(0);
 	} else {
-		pthread_mutex_unlock(&g_workers_lock);
+		real_pthread_mutex_unlock(&g_workers_lock);
 	}
 }
 
@@ -791,11 +792,11 @@ _init_thread(void *arg1)
 	free(display);
 	worker->core = spdk_env_get_current_core();
 	worker->thread = spdk_get_thread();
-	pthread_mutex_lock(&g_workers_lock);
+	real_pthread_mutex_lock(&g_workers_lock);
 	g_num_workers++;
 	worker->next = g_workers;
 	g_workers = worker;
-	pthread_mutex_unlock(&g_workers_lock);
+	real_pthread_mutex_unlock(&g_workers_lock);
 	worker->ch = spdk_accel_get_io_channel();
 	if (worker->ch == NULL) {
 		fprintf(stderr, "Unable to get an accel channel\n");
@@ -1130,13 +1131,13 @@ shutdown_cb(void)
 {
 	struct worker_thread *worker;
 
-	pthread_mutex_lock(&g_workers_lock);
+	real_pthread_mutex_lock(&g_workers_lock);
 	worker = g_workers;
 	while (worker) {
 		spdk_thread_send_msg(worker->thread, worker_shutdown, worker);
 		worker = worker->next;
 	}
-	pthread_mutex_unlock(&g_workers_lock);
+	real_pthread_mutex_unlock(&g_workers_lock);
 }
 
 int
@@ -1144,7 +1145,7 @@ main(int argc, char **argv)
 {
 	struct worker_thread *worker, *tmp;
 
-	pthread_mutex_init(&g_workers_lock, NULL);
+	real_pthread_mutex_init(&g_workers_lock, NULL);
 	spdk_app_opts_init(&g_opts, sizeof(g_opts));
 	g_opts.name = "accel_perf";
 	g_opts.reactor_mask = "0x1";
@@ -1199,7 +1200,7 @@ main(int argc, char **argv)
 		SPDK_ERRLOG("ERROR starting application\n");
 	}
 
-	pthread_mutex_destroy(&g_workers_lock);
+	real_pthread_mutex_destroy(&g_workers_lock);
 
 	worker = g_workers;
 	while (worker) {

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -46,7 +47,7 @@ add_lvs_to_list(struct spdk_lvol_store *lvs)
 	struct spdk_lvol_store *tmp;
 	bool name_conflict = false;
 
-	pthread_mutex_lock(&g_lvol_stores_mutex);
+	real_pthread_mutex_lock(&g_lvol_stores_mutex);
 	TAILQ_FOREACH(tmp, &g_lvol_stores, link) {
 		if (!strncmp(lvs->name, tmp->name, SPDK_LVS_NAME_MAX)) {
 			name_conflict = true;
@@ -57,7 +58,7 @@ add_lvs_to_list(struct spdk_lvol_store *lvs)
 		lvs->on_list = true;
 		TAILQ_INSERT_TAIL(&g_lvol_stores, lvs, link);
 	}
-	pthread_mutex_unlock(&g_lvol_stores_mutex);
+	real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 
 	return name_conflict ? -1 : 0;
 }
@@ -86,11 +87,11 @@ lvs_alloc(void)
 static void
 lvs_free(struct spdk_lvol_store *lvs)
 {
-	pthread_mutex_lock(&g_lvol_stores_mutex);
+	real_pthread_mutex_lock(&g_lvol_stores_mutex);
 	if (lvs->on_list) {
 		TAILQ_REMOVE(&g_lvol_stores, lvs, link);
 	}
-	pthread_mutex_unlock(&g_lvol_stores_mutex);
+	real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 
 	assert(RB_EMPTY(&lvs->degraded_lvol_sets_tree));
 
@@ -835,16 +836,16 @@ spdk_lvs_rename(struct spdk_lvol_store *lvs, const char *new_name,
 	}
 
 	/* Check if new or new_name is already used in other lvs */
-	pthread_mutex_lock(&g_lvol_stores_mutex);
+	real_pthread_mutex_lock(&g_lvol_stores_mutex);
 	TAILQ_FOREACH(tmp, &g_lvol_stores, link) {
 		if (!strncmp(new_name, tmp->name, SPDK_LVS_NAME_MAX) ||
 		    !strncmp(new_name, tmp->new_name, SPDK_LVS_NAME_MAX)) {
-			pthread_mutex_unlock(&g_lvol_stores_mutex);
+			real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 			cb_fn(cb_arg, -EEXIST);
 			return;
 		}
 	}
-	pthread_mutex_unlock(&g_lvol_stores_mutex);
+	real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 
 	req = calloc(1, sizeof(*req));
 	if (!req) {
@@ -2075,7 +2076,7 @@ spdk_lvs_notify_hotplug(const void *esnap_id, uint32_t id_len,
 	find.esnap_id = esnap_id;
 	find.id_len = id_len;
 
-	pthread_mutex_lock(&g_lvol_stores_mutex);
+	real_pthread_mutex_lock(&g_lvol_stores_mutex);
 	TAILQ_FOREACH(lvs, &g_lvol_stores, link) {
 		if (thread != lvs->thread) {
 			/*
@@ -2099,7 +2100,7 @@ spdk_lvs_notify_hotplug(const void *esnap_id, uint32_t id_len,
 		ret = true;
 		lvs_esnap_degraded_hotplug(found, cb_fn, cb_arg);
 	}
-	pthread_mutex_unlock(&g_lvol_stores_mutex);
+	real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 
 	return ret;
 }
@@ -2161,18 +2162,18 @@ spdk_lvol_get_by_uuid(const struct spdk_uuid *uuid)
 	struct spdk_lvol_store *lvs;
 	struct spdk_lvol *lvol;
 
-	pthread_mutex_lock(&g_lvol_stores_mutex);
+	real_pthread_mutex_lock(&g_lvol_stores_mutex);
 
 	TAILQ_FOREACH(lvs, &g_lvol_stores, link) {
 		TAILQ_FOREACH(lvol, &lvs->lvols, link) {
 			if (spdk_uuid_compare(uuid, &lvol->uuid) == 0) {
-				pthread_mutex_unlock(&g_lvol_stores_mutex);
+				real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 				return lvol;
 			}
 		}
 	}
 
-	pthread_mutex_unlock(&g_lvol_stores_mutex);
+	real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 	return NULL;
 }
 
@@ -2182,7 +2183,7 @@ spdk_lvol_get_by_names(const char *lvs_name, const char *lvol_name)
 	struct spdk_lvol_store *lvs;
 	struct spdk_lvol *lvol;
 
-	pthread_mutex_lock(&g_lvol_stores_mutex);
+	real_pthread_mutex_lock(&g_lvol_stores_mutex);
 
 	TAILQ_FOREACH(lvs, &g_lvol_stores, link) {
 		if (strcmp(lvs_name, lvs->name) != 0) {
@@ -2190,13 +2191,13 @@ spdk_lvol_get_by_names(const char *lvs_name, const char *lvol_name)
 		}
 		TAILQ_FOREACH(lvol, &lvs->lvols, link) {
 			if (strcmp(lvol_name, lvol->name) == 0) {
-				pthread_mutex_unlock(&g_lvol_stores_mutex);
+				real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 				return lvol;
 			}
 		}
 	}
 
-	pthread_mutex_unlock(&g_lvol_stores_mutex);
+	real_pthread_mutex_unlock(&g_lvol_stores_mutex);
 	return NULL;
 }
 

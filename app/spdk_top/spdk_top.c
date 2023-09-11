@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   All rights reserved.
@@ -733,7 +734,7 @@ get_thread_data(void)
 		goto end;
 	}
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 
 	/* This is to free allocated char arrays with old thread names */
 	for (i = 0; i < g_last_threads_count; i++) {
@@ -777,7 +778,7 @@ get_thread_data(void)
 
 	qsort(g_threads_info, g_last_threads_count, sizeof(struct rpc_thread_info), sort_threads);
 
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 
 end:
 	spdk_jsonrpc_client_free_response(json_resp);
@@ -904,7 +905,7 @@ get_pollers_data(void)
 		goto end;
 	}
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 
 	/* Save last run counter of each poller before updating g_pollers_stats. */
 	for (i = 0; i < g_last_pollers_count; i++) {
@@ -923,7 +924,7 @@ get_pollers_data(void)
 
 	memcpy(&g_pollers_info, &pollers_info, sizeof(struct rpc_poller_info) * g_last_pollers_count);
 
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 
 end:
 	spdk_jsonrpc_client_free_response(json_resp);
@@ -1030,7 +1031,7 @@ get_cores_data(void)
 		goto end;
 	}
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 	for (i = 0; i < current_cores_count; i++) {
 		for (j = 0; j < g_last_cores_count; j++) {
 			if (cores_info[i].lcore == g_cores_info[j].lcore) {
@@ -1071,7 +1072,7 @@ get_cores_data(void)
 	qsort(&g_cores_info, g_last_cores_count, sizeof(struct rpc_core_info), sort_cores);
 
 end:
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 	spdk_jsonrpc_client_free_response(json_resp);
 	return rc;
 }
@@ -1093,12 +1094,12 @@ get_scheduler_data(void)
 					    SPDK_COUNTOF(rpc_scheduler_decoders), &scheduler_info)) {
 		rc = -EINVAL;
 	} else {
-		pthread_mutex_lock(&g_thread_lock);
+		real_pthread_mutex_lock(&g_thread_lock);
 
 		free_rpc_scheduler(&g_scheduler_info);
 
 		memcpy(&g_scheduler_info, &scheduler_info, sizeof(struct rpc_scheduler));
-		pthread_mutex_unlock(&g_thread_lock);
+		real_pthread_mutex_unlock(&g_thread_lock);
 	}
 
 	spdk_jsonrpc_client_free_response(json_resp);
@@ -2260,9 +2261,9 @@ change_refresh_rate(void)
 			stop_loop = true;
 			break;
 		case 10: /* Enter */
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			g_sleep_time = refresh_rate;
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			stop_loop = true;
 			break;
 		}
@@ -2454,7 +2455,7 @@ draw_core_win_content(WINDOW *core_win, struct rpc_core_info *core_info)
 	for (i = 0; i < core_info->threads.threads_count; i++) {
 		mvwprintw(core_win, i + 10, 1, "%s", core_info->threads.thread[i].name);
 	}
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 
 	wnoutrefresh(core_win);
 }
@@ -2478,9 +2479,9 @@ display_thread(uint64_t thread_id, uint8_t current_page, uint8_t active_tab,
 	memset(&thread_info, 0, sizeof(thread_info));
 
 	while (!stop_loop) {
-		pthread_mutex_lock(&g_thread_lock);
+		real_pthread_mutex_lock(&g_thread_lock);
 		if (get_single_thread_info(thread_id, &thread_info)) {
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			free(thread_info.name);
 			free(thread_info.cpumask);
 			thread_info.name = NULL;
@@ -2509,7 +2510,7 @@ display_thread(uint64_t thread_id, uint8_t current_page, uint8_t active_tab,
 			draw_thread_win_content(thread_win, &thread_info);
 			refresh();
 		}
-		pthread_mutex_unlock(&g_thread_lock);
+		real_pthread_mutex_unlock(&g_thread_lock);
 
 		if (check_resize_interface(active_tab, &current_page)) {
 			/* This clear is to avoid remaining artifacts after window has been moved */
@@ -2518,9 +2519,9 @@ display_thread(uint64_t thread_id, uint8_t current_page, uint8_t active_tab,
 			resize_interface(active_tab);
 			draw_tabs(active_tab, g_current_sort_col[active_tab], g_current_sort_col2[active_tab]);
 			if (core_popup != NULL) {
-				pthread_mutex_lock(&g_thread_lock);
+				real_pthread_mutex_lock(&g_thread_lock);
 				threads_count = g_cores_info[core_info->lcore].threads.threads_count;
-				pthread_mutex_unlock(&g_thread_lock);
+				real_pthread_mutex_unlock(&g_thread_lock);
 				mvwin(core_popup, get_position_for_window(CORE_WIN_HEIGHT + threads_count, g_max_row),
 				      get_position_for_window(CORE_WIN_WIDTH, g_max_col));
 			}
@@ -2543,14 +2544,14 @@ display_thread(uint64_t thread_id, uint8_t current_page, uint8_t active_tab,
 
 		if (time_dif >= g_sleep_time) {
 			time_last = time_now.tv_sec;
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			refresh_tab(active_tab, current_page);
 			if (core_popup != NULL) {
 				draw_core_win_content(core_popup, core_info);
 			}
 			draw_thread_win_content(thread_win, &thread_info);
 			refresh();
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 		}
 
 		last_pollers_count = pollers_count;
@@ -2570,10 +2571,10 @@ show_thread(uint8_t current_page, uint8_t active_tab)
 	uint64_t thread_number = current_page * g_max_data_rows + g_selected_row;
 	uint64_t thread_id;
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 	assert(thread_number < g_last_threads_count);
 	thread_id = g_threads_info[thread_number].id;
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 
 	display_thread(thread_id, current_page, active_tab, NULL, NULL);
 }
@@ -2584,15 +2585,15 @@ show_single_thread(uint64_t thread_id, uint8_t current_page, uint8_t active_tab,
 {
 	uint64_t i;
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 	for (i = 0; i < g_last_threads_count; i++) {
 		if (g_threads_info[i].id == thread_id) {
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			display_thread(thread_id, current_page, active_tab, core_popup, core_info);
 			return;
 		}
 	}
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 }
 
 static void
@@ -2614,7 +2615,7 @@ show_core(uint8_t current_page, uint8_t active_tab)
 
 	bool stop_loop = false;
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 	assert(core_number < g_last_cores_count);
 
 	threads_count = g_cores_info[core_number].threads.threads_count;
@@ -2635,7 +2636,7 @@ show_core(uint8_t current_page, uint8_t active_tab)
 	current_threads_row = 0;
 
 	while (!stop_loop) {
-		pthread_mutex_lock(&g_thread_lock);
+		real_pthread_mutex_lock(&g_thread_lock);
 		for (i = 0; i < core_info->threads.threads_count; i++) {
 			if (i != current_threads_row) {
 				mvwprintw(core_win, i + 10, 1, "%s", core_info->threads.thread[i].name);
@@ -2644,7 +2645,7 @@ show_core(uint8_t current_page, uint8_t active_tab)
 					   core_info->threads.thread[i].name, COLOR_PAIR(2));
 			}
 		}
-		pthread_mutex_unlock(&g_thread_lock);
+		real_pthread_mutex_unlock(&g_thread_lock);
 
 		wrefresh(core_win);
 		if (check_resize_interface(active_tab, &current_page)) {
@@ -2658,22 +2659,22 @@ show_core(uint8_t current_page, uint8_t active_tab)
 		c = getch();
 		switch (c) {
 		case 10: /* ENTER */
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			if (core_info->threads.threads_count > 0) {
 				thread_id = core_info->threads.thread[current_threads_row].id;
 			}
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 
 			if (thread_id != 0) {
 				show_single_thread(thread_id, current_page, active_tab, core_win, core_info);
 			}
 
 			/* This refreshes tab and core_pop-up after exiting threads pop-up. */
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			refresh_tab(active_tab, current_page);
 			wnoutrefresh(core_win);
 			refresh();
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			break;
 		case 27: /* ESC */
 			stop_loop = true;
@@ -2684,11 +2685,11 @@ show_core(uint8_t current_page, uint8_t active_tab)
 			}
 			break;
 		case KEY_DOWN:
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			if (current_threads_row != core_info->threads.threads_count - 1) {
 				current_threads_row++;
 			}
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			break;
 		default:
 			break;
@@ -2699,11 +2700,11 @@ show_core(uint8_t current_page, uint8_t active_tab)
 
 		if (time_dif >= g_sleep_time) {
 			time_last = time_now.tv_sec;
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			refresh_tab(active_tab, current_page);
 			draw_core_win_content(core_win, core_info);
 			refresh();
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 		}
 	}
 
@@ -2782,7 +2783,7 @@ show_poller(uint8_t current_page, uint8_t active_tab)
 	time_last = time_now.tv_sec;
 
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 
 	assert(poller_number < g_last_pollers_count);
 	poller = &g_pollers_info[poller_number];
@@ -2800,7 +2801,7 @@ show_poller(uint8_t current_page, uint8_t active_tab)
 	draw_poller_win_content(poller_win, poller);
 	refresh();
 
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 	while (!stop_loop) {
 		if (check_resize_interface(active_tab, &current_page)) {
 			/* This clear is to avoid remaining artifacts after window has been moved */
@@ -2824,11 +2825,11 @@ show_poller(uint8_t current_page, uint8_t active_tab)
 
 		if (time_dif >= g_sleep_time) {
 			time_last = time_now.tv_sec;
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			refresh_tab(active_tab, current_page);
 			draw_poller_win_content(poller_win, poller);
 			refresh();
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 		}
 	}
 
@@ -2918,7 +2919,7 @@ show_scheduler(uint8_t active_tab, uint8_t current_page)
 	const char *scheduler_period_label = "Period [us]:  ";
 	const char *governor_name_label = "Governor:  ";
 
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 	scheduler_win_width = get_max_scheduler_win_width(strlen(scheduler_name_label),
 			      strlen(scheduler_period_label),
 			      strlen(governor_name_label));
@@ -2936,7 +2937,7 @@ show_scheduler(uint8_t active_tab, uint8_t current_page)
 
 	draw_scheduler_popup(scheduler_win, scheduler_win_width, active_tab, current_page,
 			     scheduler_name_label, scheduler_period_label, governor_name_label);
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 
 	while (!stop_loop) {
 		c = wgetch(scheduler_win);
@@ -2961,9 +2962,9 @@ data_thread_routine(void *arg)
 	uint64_t refresh_rate;
 
 	while (1) {
-		pthread_mutex_lock(&g_thread_lock);
+		real_pthread_mutex_lock(&g_thread_lock);
 		if (g_quit_app) {
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			break;
 		}
 
@@ -2973,7 +2974,7 @@ data_thread_routine(void *arg)
 		} else {
 			refresh_rate = g_sleep_time * SPDK_SEC_TO_USEC;
 		}
-		pthread_mutex_unlock(&g_thread_lock);
+		real_pthread_mutex_unlock(&g_thread_lock);
 
 		/* Get data from RPC for each object type.
 		 * Start with cores since their number should not change. */
@@ -3101,9 +3102,9 @@ refresh_after_popup(uint8_t active_tab, uint8_t *max_pages, uint8_t current_page
 	/* After closing pop-up there would be unrefreshed parts
 	 * of the tab, so this is to refresh them */
 	draw_tabs(active_tab, g_current_sort_col[active_tab], g_current_sort_col2[active_tab]);
-	pthread_mutex_lock(&g_thread_lock);
+	real_pthread_mutex_lock(&g_thread_lock);
 	*max_pages = refresh_tab(active_tab, current_page);
-	pthread_mutex_unlock(&g_thread_lock);
+	real_pthread_mutex_unlock(&g_thread_lock);
 	top_panel(g_panels[active_tab]);
 
 	for (i = 0; i < NUMBER_OF_TABS; i++) {
@@ -3148,9 +3149,9 @@ show_stats(pthread_t *data_thread)
 
 		if (time_dif >= g_sleep_time || force_refresh) {
 			time_last = time_now.tv_sec;
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			max_pages = refresh_tab(active_tab, current_page);
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 
 			snprintf(current_page_str, CURRENT_PAGE_STR_LEN - 1, "Page: %d/%d", current_page + 1, max_pages);
 			mvprintw(g_max_row - 1, 1, "%s", current_page_str);
@@ -3160,9 +3161,9 @@ show_stats(pthread_t *data_thread)
 
 		c = getch();
 		if (c == 'q') {
-			pthread_mutex_lock(&g_thread_lock);
+			real_pthread_mutex_lock(&g_thread_lock);
 			g_quit_app = true;
-			pthread_mutex_unlock(&g_thread_lock);
+			real_pthread_mutex_unlock(&g_thread_lock);
 			break;
 		}
 
@@ -3265,7 +3266,7 @@ show_stats(pthread_t *data_thread)
 		}
 	}
 
-	pthread_join(*data_thread, NULL);
+	real_pthread_join(*data_thread, NULL);
 
 	free_poller_history();
 
@@ -3410,7 +3411,7 @@ wait_init(pthread_t *data_thread)
 
 	spdk_jsonrpc_client_free_response(json_resp);
 
-	rc = pthread_mutex_init(&g_thread_lock, NULL);
+	rc = real_pthread_mutex_init(&g_thread_lock, NULL);
 	if (rc) {
 		fprintf(stderr, "mutex lock failed to initialize: %d\n", errno);
 		return -1;
@@ -3453,7 +3454,7 @@ wait_init(pthread_t *data_thread)
 		return -1;
 	}
 
-	rc = pthread_create(data_thread, NULL, &data_thread_routine, NULL);
+	rc = real_pthread_create(data_thread, NULL, &data_thread_routine, NULL);
 	if (rc) {
 		fprintf(stderr, "data thread creation failed: %d\n", errno);
 		return -1;

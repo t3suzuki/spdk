@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -51,7 +52,7 @@ allocate_conn(void)
 {
 	struct spdk_iscsi_conn	*conn;
 
-	pthread_mutex_lock(&g_conns_mutex);
+	real_pthread_mutex_lock(&g_conns_mutex);
 	conn = TAILQ_FIRST(&g_free_conns);
 	if (conn != NULL) {
 		assert(!conn->is_valid);
@@ -61,7 +62,7 @@ allocate_conn(void)
 
 		TAILQ_INSERT_TAIL(&g_active_conns, conn, conn_link);
 	}
-	pthread_mutex_unlock(&g_conns_mutex);
+	real_pthread_mutex_unlock(&g_conns_mutex);
 
 	return conn;
 }
@@ -81,9 +82,9 @@ _free_conn(struct spdk_iscsi_conn *conn)
 static void
 free_conn(struct spdk_iscsi_conn *conn)
 {
-	pthread_mutex_lock(&g_conns_mutex);
+	real_pthread_mutex_lock(&g_conns_mutex);
 	_free_conn(conn);
-	pthread_mutex_unlock(&g_conns_mutex);
+	real_pthread_mutex_unlock(&g_conns_mutex);
 }
 
 static void
@@ -179,7 +180,7 @@ iscsi_conn_construct(struct spdk_iscsi_portal *portal,
 		return -1;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 	conn->timeout = g_iscsi.timeout * spdk_get_ticks_hz(); /* seconds to TSC */
 	conn->nopininterval = g_iscsi.nopininterval;
 	conn->nopininterval *= spdk_get_ticks_hz(); /* seconds to TSC */
@@ -191,7 +192,7 @@ iscsi_conn_construct(struct spdk_iscsi_portal *portal,
 	conn->require_chap = portal->group->require_chap;
 	conn->mutual_chap = portal->group->mutual_chap;
 	conn->chap_group = portal->group->chap_group;
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 	conn->MaxRecvDataSegmentLength = 8192; /* RFC3720(12.12) */
 
 	conn->portal = portal;
@@ -351,7 +352,7 @@ iscsi_conn_free(struct spdk_iscsi_conn *conn)
 	int idx;
 	uint32_t i;
 
-	pthread_mutex_lock(&g_conns_mutex);
+	real_pthread_mutex_lock(&g_conns_mutex);
 
 	if (conn->sess == NULL) {
 		goto end;
@@ -393,7 +394,7 @@ end:
 	iscsi_param_free(conn->params);
 	_free_conn(conn);
 
-	pthread_mutex_unlock(&g_conns_mutex);
+	real_pthread_mutex_unlock(&g_conns_mutex);
 }
 
 static void
@@ -573,9 +574,9 @@ iscsi_conn_stop(struct spdk_iscsi_conn *conn)
 	    conn->sess->session_type == SESSION_TYPE_NORMAL &&
 	    conn->full_feature) {
 		target = conn->sess->target;
-		pthread_mutex_lock(&target->mutex);
+		real_pthread_mutex_lock(&target->mutex);
 		target->num_active_conns--;
-		pthread_mutex_unlock(&target->mutex);
+		real_pthread_mutex_unlock(&target->mutex);
 
 		iscsi_conn_close_luns(conn);
 	}
@@ -704,13 +705,13 @@ iscsi_get_active_conns(struct spdk_iscsi_tgt_node *target)
 		return 0;
 	}
 
-	pthread_mutex_lock(&g_conns_mutex);
+	real_pthread_mutex_lock(&g_conns_mutex);
 	TAILQ_FOREACH(conn, &g_active_conns, conn_link) {
 		if (target == NULL || conn->target == target) {
 			num++;
 		}
 	}
-	pthread_mutex_unlock(&g_conns_mutex);
+	real_pthread_mutex_unlock(&g_conns_mutex);
 	return num;
 }
 
@@ -815,14 +816,14 @@ iscsi_conns_request_logout(struct spdk_iscsi_tgt_node *target, int pg_tag)
 		return;
 	}
 
-	pthread_mutex_lock(&g_conns_mutex);
+	real_pthread_mutex_lock(&g_conns_mutex);
 	TAILQ_FOREACH(conn, &g_active_conns, conn_link) {
 		if ((target == NULL) ||
 		    (conn->target == target && (pg_tag < 0 || conn->pg_tag == pg_tag))) {
 			iscsi_conn_request_logout(conn);
 		}
 	}
-	pthread_mutex_unlock(&g_conns_mutex);
+	real_pthread_mutex_unlock(&g_conns_mutex);
 }
 
 void
@@ -858,7 +859,7 @@ iscsi_drop_conns(struct spdk_iscsi_conn *conn, const char *conn_match,
 	SPDK_DEBUGLOG(iscsi, "iscsi_drop_conns\n");
 
 	num = 0;
-	pthread_mutex_lock(&g_conns_mutex);
+	real_pthread_mutex_lock(&g_conns_mutex);
 	if (g_conns_array == MAP_FAILED) {
 		goto exit;
 	}
@@ -905,7 +906,7 @@ iscsi_drop_conns(struct spdk_iscsi_conn *conn, const char *conn_match,
 	}
 
 exit:
-	pthread_mutex_unlock(&g_conns_mutex);
+	real_pthread_mutex_unlock(&g_conns_mutex);
 
 	if (num != 0) {
 		SPDK_ERRLOG("exiting %d conns\n", num);
@@ -1529,10 +1530,10 @@ iscsi_conn_schedule(struct spdk_iscsi_conn *conn)
 		 * thread. */
 		return;
 	}
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	target = conn->sess->target;
-	pthread_mutex_lock(&target->mutex);
+	real_pthread_mutex_lock(&target->mutex);
 	target->num_active_conns++;
 	if (target->num_active_conns == 1) {
 		/**
@@ -1556,8 +1557,8 @@ iscsi_conn_schedule(struct spdk_iscsi_conn *conn)
 		pg = target->pg;
 	}
 
-	pthread_mutex_unlock(&target->mutex);
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&target->mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	assert(spdk_io_channel_get_thread(spdk_io_channel_from_ctx(conn->pg)) ==
 	       spdk_get_thread());

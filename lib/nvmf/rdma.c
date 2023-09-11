@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019-2021 Mellanox Technologies LTD. All rights reserved.
@@ -4021,9 +4022,9 @@ nvmf_poll_group_get_io_qpair_count(struct spdk_nvmf_poll_group *pg)
 	 * qpairs.  This is close enough for the use cases for this
 	 * function.
 	 */
-	pthread_mutex_lock(&pg->mutex);
+	real_pthread_mutex_lock(&pg->mutex);
 	count = pg->stat.current_io_qpairs + pg->current_unassociated_qpairs;
-	pthread_mutex_unlock(&pg->mutex);
+	real_pthread_mutex_unlock(&pg->mutex);
 
 	return count;
 }

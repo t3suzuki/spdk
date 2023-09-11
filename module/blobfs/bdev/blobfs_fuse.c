@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation.
  *   All rights reserved.
@@ -302,7 +303,7 @@ blobfs_fuse_start(const char *bdev_name, const char *mountpoint, struct spdk_fil
 		goto err;
 	}
 
-	rc = pthread_create(&tid, NULL, fuse_loop_new_thread, bfuse);
+	rc = real_pthread_create(&tid, NULL, fuse_loop_new_thread, bfuse);
 	if (rc != 0) {
 		SPDK_ERRLOG("could not create thread: %s\n", spdk_strerror(rc));
 		rc = -rc;

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES.
@@ -48,15 +49,15 @@ ioat_allocate_device(void)
 {
 	struct ioat_device *dev;
 
-	pthread_mutex_lock(&g_ioat_mutex);
+	real_pthread_mutex_lock(&g_ioat_mutex);
 	TAILQ_FOREACH(dev, &g_devices, tailq) {
 		if (!dev->is_allocated) {
 			dev->is_allocated = true;
-			pthread_mutex_unlock(&g_ioat_mutex);
+			real_pthread_mutex_unlock(&g_ioat_mutex);
 			return dev;
 		}
 	}
-	pthread_mutex_unlock(&g_ioat_mutex);
+	real_pthread_mutex_unlock(&g_ioat_mutex);
 
 	return NULL;
 }
@@ -64,9 +65,9 @@ ioat_allocate_device(void)
 static void
 ioat_free_device(struct ioat_device *dev)
 {
-	pthread_mutex_lock(&g_ioat_mutex);
+	real_pthread_mutex_lock(&g_ioat_mutex);
 	dev->is_allocated = false;
-	pthread_mutex_unlock(&g_ioat_mutex);
+	real_pthread_mutex_unlock(&g_ioat_mutex);
 }
 
 static int accel_ioat_init(void);

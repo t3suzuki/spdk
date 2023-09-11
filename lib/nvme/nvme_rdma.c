@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019-2021 Mellanox Technologies LTD. All rights reserved.
@@ -321,12 +322,12 @@ nvme_rdma_get_memory_domain(struct ibv_pd *pd)
 	struct spdk_memory_domain_ctx ctx;
 	int rc;
 
-	pthread_mutex_lock(&g_memory_domains_lock);
+	real_pthread_mutex_lock(&g_memory_domains_lock);
 
 	TAILQ_FOREACH(domain, &g_memory_domains, link) {
 		if (domain->pd == pd) {
 			domain->ref++;
-			pthread_mutex_unlock(&g_memory_domains_lock);
+			real_pthread_mutex_unlock(&g_memory_domains_lock);
 			return domain;
 		}
 	}
@@ -334,7 +335,7 @@ nvme_rdma_get_memory_domain(struct ibv_pd *pd)
 	domain = calloc(1, sizeof(*domain));
 	if (!domain) {
 		SPDK_ERRLOG("Memory allocation failed\n");
-		pthread_mutex_unlock(&g_memory_domains_lock);
+		real_pthread_mutex_unlock(&g_memory_domains_lock);
 		return NULL;
 	}
 
@@ -348,7 +349,7 @@ nvme_rdma_get_memory_domain(struct ibv_pd *pd)
 	if (rc) {
 		SPDK_ERRLOG("Failed to create memory domain\n");
 		free(domain);
-		pthread_mutex_unlock(&g_memory_domains_lock);
+		real_pthread_mutex_unlock(&g_memory_domains_lock);
 		return NULL;
 	}
 
@@ -356,7 +357,7 @@ nvme_rdma_get_memory_domain(struct ibv_pd *pd)
 	domain->ref = 1;
 	TAILQ_INSERT_TAIL(&g_memory_domains, domain, link);
 
-	pthread_mutex_unlock(&g_memory_domains_lock);
+	real_pthread_mutex_unlock(&g_memory_domains_lock);
 
 	return domain;
 }
@@ -368,7 +369,7 @@ nvme_rdma_put_memory_domain(struct nvme_rdma_memory_domain *device)
 		return;
 	}
 
-	pthread_mutex_lock(&g_memory_domains_lock);
+	real_pthread_mutex_lock(&g_memory_domains_lock);
 
 	assert(device->ref > 0);
 
@@ -380,7 +381,7 @@ nvme_rdma_put_memory_domain(struct nvme_rdma_memory_domain *device)
 		free(device);
 	}
 
-	pthread_mutex_unlock(&g_memory_domains_lock);
+	real_pthread_mutex_unlock(&g_memory_domains_lock);
 }
 
 static int nvme_rdma_ctrlr_delete_io_qpair(struct spdk_nvme_ctrlr *ctrlr,

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation.
  *   All rights reserved.
@@ -226,7 +227,7 @@ nvmf_schedule_spdk_thread(struct spdk_thread *thread)
 	 * Here we use the mutex.The way the actual SPDK event framework
 	 * solves this is by using internal rings for messages between reactors
 	 */
-	pthread_mutex_lock(&g_mutex);
+	real_pthread_mutex_lock(&g_mutex);
 	for (i = 0; i < spdk_env_get_core_count(); i++) {
 		if (g_next_reactor == NULL) {
 			g_next_reactor = TAILQ_FIRST(&g_reactors);
@@ -240,7 +241,7 @@ nvmf_schedule_spdk_thread(struct spdk_thread *thread)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_mutex);
+	real_pthread_mutex_unlock(&g_mutex);
 
 	if (i == spdk_env_get_core_count()) {
 		fprintf(stderr, "failed to schedule spdk thread\n");
@@ -377,7 +378,7 @@ nvmf_destroy_threads(void)
 		free(nvmf_reactor);
 	}
 
-	pthread_mutex_destroy(&g_mutex);
+	real_pthread_mutex_destroy(&g_mutex);
 	spdk_thread_lib_fini();
 	fprintf(stdout, "nvmf threads destroy successfully\n");
 }

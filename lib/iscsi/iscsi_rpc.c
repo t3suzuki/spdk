@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2008-2012 Daisuke Aoyama <aoyama@peach.ne.jp>.
  *   Copyright (C) 2016 Intel Corporation.
@@ -897,7 +898,7 @@ rpc_iscsi_portal_group_set_auth(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	pg = iscsi_portal_grp_find_by_tag(req.tag);
 	if (pg == NULL) {
@@ -914,13 +915,13 @@ rpc_iscsi_portal_group_set_auth(struct spdk_jsonrpc_request *request,
 		goto exit;
 	}
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	spdk_jsonrpc_send_bool_response(request, true);
 	return;
 
 exit:
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 }
 SPDK_RPC_REGISTER("iscsi_portal_group_set_auth", rpc_iscsi_portal_group_set_auth,
 		  SPDK_RPC_RUNTIME)
@@ -1386,11 +1387,11 @@ rpc_iscsi_create_auth_group(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	rc = iscsi_add_auth_group(req.tag, &group);
 	if (rc != 0) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 						     "Could not add auth group (%d), %s",
@@ -1405,7 +1406,7 @@ rpc_iscsi_create_auth_group(struct spdk_jsonrpc_request *request,
 						 _secret->muser, _secret->msecret);
 		if (rc != 0) {
 			iscsi_delete_auth_group(group);
-			pthread_mutex_unlock(&g_iscsi.mutex);
+			real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 			spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 							     "Could not add secret to auth group (%d), %s",
@@ -1415,7 +1416,7 @@ rpc_iscsi_create_auth_group(struct spdk_jsonrpc_request *request,
 		}
 	}
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	free_rpc_auth_group(&req);
 
@@ -1446,11 +1447,11 @@ rpc_iscsi_delete_auth_group(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	group = iscsi_find_auth_group_by_tag(req.tag);
 	if (group == NULL) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 						     "Could not find auth group (%d)", req.tag);
@@ -1459,7 +1460,7 @@ rpc_iscsi_delete_auth_group(struct spdk_jsonrpc_request *request,
 
 	iscsi_delete_auth_group(group);
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	spdk_jsonrpc_send_bool_response(request, true);
 }
@@ -1507,11 +1508,11 @@ rpc_iscsi_auth_group_add_secret(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	group = iscsi_find_auth_group_by_tag(req.tag);
 	if (group == NULL) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 						     "Could not find auth group (%d)", req.tag);
@@ -1521,7 +1522,7 @@ rpc_iscsi_auth_group_add_secret(struct spdk_jsonrpc_request *request,
 
 	rc = iscsi_auth_group_add_secret(group, req.user, req.secret, req.muser, req.msecret);
 	if (rc != 0) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 						     "Could not add secret to auth group (%d), %s",
@@ -1530,7 +1531,7 @@ rpc_iscsi_auth_group_add_secret(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	free_rpc_add_auth_secret(&req);
 
@@ -1573,11 +1574,11 @@ rpc_iscsi_auth_group_remove_secret(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_lock(&g_iscsi.mutex);
+	real_pthread_mutex_lock(&g_iscsi.mutex);
 
 	group = iscsi_find_auth_group_by_tag(req.tag);
 	if (group == NULL) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 						     "Could not find auth group (%d)", req.tag);
@@ -1587,7 +1588,7 @@ rpc_iscsi_auth_group_remove_secret(struct spdk_jsonrpc_request *request,
 
 	rc = iscsi_auth_group_delete_secret(group, req.user);
 	if (rc != 0) {
-		pthread_mutex_unlock(&g_iscsi.mutex);
+		real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 		spdk_jsonrpc_send_error_response_fmt(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
 						     "Could not delete secret from CHAP group (%d), %s",
@@ -1596,7 +1597,7 @@ rpc_iscsi_auth_group_remove_secret(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	pthread_mutex_unlock(&g_iscsi.mutex);
+	real_pthread_mutex_unlock(&g_iscsi.mutex);
 
 	free_rpc_remove_auth_secret(&req);
 

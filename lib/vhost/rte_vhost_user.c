@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation.
  *   All rights reserved.
@@ -929,10 +930,10 @@ new_connection(int vid)
 	spdk_vhost_unlock();
 
 	user_dev = to_user_dev(vdev);
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	if (user_dev->registered == false) {
 		SPDK_ERRLOG("Device %s is unregistered\n", ctrlr_name);
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		return -1;
 	}
 
@@ -942,7 +943,7 @@ new_connection(int vid)
 	 * This is required for vhost_user_dev_foreach_session() to work.
 	 */
 	if (user_dev->vsessions_num == UINT_MAX) {
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		assert(false);
 		return -EINVAL;
 	}
@@ -950,7 +951,7 @@ new_connection(int vid)
 	if (posix_memalign((void **)&vsession, SPDK_CACHE_LINE_SIZE, sizeof(*vsession) +
 			   user_dev->user_backend->session_ctx_size)) {
 		SPDK_ERRLOG("vsession alloc failed\n");
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		return -1;
 	}
 	memset(vsession, 0, sizeof(*vsession) + user_dev->user_backend->session_ctx_size);
@@ -962,7 +963,7 @@ new_connection(int vid)
 	if (vsession->name == NULL) {
 		SPDK_ERRLOG("vsession alloc failed\n");
 		free(vsession);
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		return -1;
 	}
 	vsession->started = false;
@@ -972,7 +973,7 @@ new_connection(int vid)
 					 spdk_get_ticks_hz() / 1000UL;
 	TAILQ_INSERT_TAIL(&user_dev->vsessions, vsession, tailq);
 	vhost_session_install_rte_compat_hooks(vsession);
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 
 	return 0;
 }
@@ -987,14 +988,14 @@ vhost_user_session_start(void *arg1)
 	int rc;
 
 	SPDK_INFOLOG(vhost, "Starting new session for device %s with vid %d\n", vdev->name, vsession->vid);
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	vsession->starting = false;
 	backend = user_dev->user_backend;
 	rc = backend->start_session(vdev, vsession, NULL);
 	if (rc == 0) {
 		vsession->started = true;
 	}
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 }
 
 static int
@@ -1138,7 +1139,7 @@ start_device(int vid)
 	vdev = vsession->vdev;
 	user_dev = to_user_dev(vdev);
 
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	if (vsession->started) {
 		/* already started, nothing to do */
 		goto out;
@@ -1156,7 +1157,7 @@ start_device(int vid)
 	spdk_thread_send_msg(vdev->thread, vhost_user_session_start, vsession);
 
 out:
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 	return rc;
 }
 
@@ -1173,15 +1174,15 @@ stop_device(int vid)
 	}
 	user_dev = to_user_dev(vsession->vdev);
 
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	if (!vsession->started && !vsession->starting) {
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		/* already stopped, nothing to do */
 		return;
 	}
 
 	_stop_session(vsession);
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 }
 
 static void
@@ -1197,10 +1198,10 @@ destroy_connection(int vid)
 	}
 	user_dev = to_user_dev(vsession->vdev);
 
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	if (vsession->started || vsession->starting) {
 		if (_stop_session(vsession) != 0) {
-			pthread_mutex_unlock(&user_dev->lock);
+			real_pthread_mutex_unlock(&user_dev->lock);
 			return;
 		}
 	}
@@ -1213,7 +1214,7 @@ destroy_connection(int vid)
 	TAILQ_REMOVE(&to_user_dev(vsession->vdev)->vsessions, vsession, tailq);
 	free(vsession->name);
 	free(vsession);
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 }
 
 #if RTE_VERSION >= RTE_VERSION_NUM(21, 11, 0, 0)
@@ -1253,15 +1254,15 @@ vhost_session_find_by_vid(int vid)
 	     vdev = spdk_vhost_dev_next(vdev)) {
 		user_dev = to_user_dev(vdev);
 
-		pthread_mutex_lock(&user_dev->lock);
+		real_pthread_mutex_lock(&user_dev->lock);
 		TAILQ_FOREACH(vsession, &user_dev->vsessions, tailq) {
 			if (vsession->vid == vid) {
-				pthread_mutex_unlock(&user_dev->lock);
+				real_pthread_mutex_unlock(&user_dev->lock);
 				spdk_vhost_unlock();
 				return vsession;
 			}
 		}
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 	}
 	spdk_vhost_unlock();
 
@@ -1302,14 +1303,14 @@ vhost_user_session_stop_event(void *arg1)
 	struct spdk_vhost_user_dev *user_dev = to_user_dev(vdev);
 	struct spdk_vhost_session *vsession;
 
-	if (pthread_mutex_trylock(&user_dev->lock) != 0) {
+	if (real_pthread_mutex_trylock(&user_dev->lock) != 0) {
 		spdk_thread_send_msg(spdk_get_thread(), vhost_user_session_stop_event, arg1);
 		return;
 	}
 
 	vsession = vhost_session_find_by_id(vdev, ctx->vsession_id);
 	user_dev->user_backend->stop_session(vdev, vsession, NULL);
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 }
 
 static int
@@ -1325,9 +1326,9 @@ vhost_user_wait_for_session_stop(struct spdk_vhost_session *vsession,
 
 	spdk_thread_send_msg(vdev->thread, vhost_user_session_stop_event, &ev_ctx);
 
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 	wait_for_semaphore(timeout_sec, errmsg);
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 
 	return g_dpdk_response;
 }
@@ -1339,7 +1340,7 @@ foreach_session_finish_cb(void *arg1)
 	struct spdk_vhost_dev *vdev = ev_ctx->vdev;
 	struct spdk_vhost_user_dev *user_dev = to_user_dev(vdev);
 
-	if (pthread_mutex_trylock(&user_dev->lock) != 0) {
+	if (real_pthread_mutex_trylock(&user_dev->lock) != 0) {
 		spdk_thread_send_msg(spdk_get_thread(),
 				     foreach_session_finish_cb, arg1);
 		return;
@@ -1351,7 +1352,7 @@ foreach_session_finish_cb(void *arg1)
 		ev_ctx->cpl_fn(vdev, ev_ctx->user_ctx);
 	}
 
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 	free(ev_ctx);
 }
 
@@ -1364,7 +1365,7 @@ foreach_session(void *arg1)
 	struct spdk_vhost_session *vsession;
 	int rc;
 
-	if (pthread_mutex_trylock(&user_dev->lock) != 0) {
+	if (real_pthread_mutex_trylock(&user_dev->lock) != 0) {
 		spdk_thread_send_msg(spdk_get_thread(), foreach_session, arg1);
 		return;
 	}
@@ -1377,7 +1378,7 @@ foreach_session(void *arg1)
 	}
 
 out:
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 	spdk_thread_send_msg(g_vhost_user_init_thread, foreach_session_finish_cb, arg1);
 }
 
@@ -1402,10 +1403,10 @@ vhost_user_dev_foreach_session(struct spdk_vhost_dev *vdev,
 	ev_ctx->cpl_fn = cpl_fn;
 	ev_ctx->user_ctx = arg;
 
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	assert(user_dev->pending_async_op_num < UINT32_MAX);
 	user_dev->pending_async_op_num++;
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 
 	spdk_thread_send_msg(vdev->thread, foreach_session, ev_ctx);
 }
@@ -1460,20 +1461,20 @@ extern_vhost_pre_msg_handler(int vid, void *_msg)
 
 	switch (msg->request) {
 	case VHOST_USER_GET_VRING_BASE:
-		pthread_mutex_lock(&user_dev->lock);
+		real_pthread_mutex_lock(&user_dev->lock);
 		if (vsession->started) {
-			pthread_mutex_unlock(&user_dev->lock);
+			real_pthread_mutex_unlock(&user_dev->lock);
 			/* `stop_device` is running in synchronous, it
 			 * will hold this lock again before exiting.
 			 */
 			g_spdk_vhost_ops.destroy_device(vid);
 		}
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		break;
 	case VHOST_USER_GET_CONFIG: {
 		int rc = 0;
 
-		pthread_mutex_lock(&user_dev->lock);
+		real_pthread_mutex_lock(&user_dev->lock);
 		if (vsession->vdev->backend->vhost_get_config) {
 			rc = vsession->vdev->backend->vhost_get_config(vsession->vdev,
 					msg->payload.cfg.region, msg->payload.cfg.size);
@@ -1481,20 +1482,20 @@ extern_vhost_pre_msg_handler(int vid, void *_msg)
 				msg->size = 0;
 			}
 		}
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 
 		return RTE_VHOST_MSG_RESULT_REPLY;
 	}
 	case VHOST_USER_SET_CONFIG: {
 		int rc = 0;
 
-		pthread_mutex_lock(&user_dev->lock);
+		real_pthread_mutex_lock(&user_dev->lock);
 		if (vsession->vdev->backend->vhost_set_config) {
 			rc = vsession->vdev->backend->vhost_set_config(vsession->vdev,
 					msg->payload.cfg.region, msg->payload.cfg.offset,
 					msg->payload.cfg.size, msg->payload.cfg.flags);
 		}
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 
 		return rc == 0 ? RTE_VHOST_MSG_RESULT_OK : RTE_VHOST_MSG_RESULT_ERR;
 	}
@@ -1551,13 +1552,13 @@ extern_vhost_post_msg_handler(int vid, void *_msg)
 		/* vhost-user spec tells us to start polling a queue after receiving
 		 * its SET_VRING_KICK message. Let's do it!
 		 */
-		pthread_mutex_lock(&user_dev->lock);
+		real_pthread_mutex_lock(&user_dev->lock);
 		if (!vsession->started) {
-			pthread_mutex_unlock(&user_dev->lock);
+			real_pthread_mutex_unlock(&user_dev->lock);
 			g_spdk_vhost_ops.new_device(vid);
 			return RTE_VHOST_MSG_RESULT_NOT_HANDLED;
 		}
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		break;
 	default:
 		break;
@@ -1795,7 +1796,7 @@ vhost_user_dev_register(struct spdk_vhost_dev *vdev, const char *name, struct sp
 	user_dev->vdev = vdev;
 	user_dev->registered = true;
 	TAILQ_INIT(&user_dev->vsessions);
-	pthread_mutex_init(&user_dev->lock, NULL);
+	real_pthread_mutex_init(&user_dev->lock, NULL);
 
 	vhost_user_dev_set_coalescing(user_dev, SPDK_VHOST_COALESCING_DELAY_BASE_US,
 				      SPDK_VHOST_VQ_IOPS_COALESCING_THRESHOLD);
@@ -1803,7 +1804,7 @@ vhost_user_dev_register(struct spdk_vhost_dev *vdev, const char *name, struct sp
 	if (vhost_register_unix_socket(path, name, vdev->virtio_features, vdev->disabled_features,
 				       vdev->protocol_features)) {
 		spdk_thread_send_msg(vdev->thread, vhost_dev_thread_exit, NULL);
-		pthread_mutex_destroy(&user_dev->lock);
+		real_pthread_mutex_destroy(&user_dev->lock);
 		free(user_dev);
 		free(vdev->path);
 		return -EIO;
@@ -1818,16 +1819,16 @@ vhost_user_dev_unregister(struct spdk_vhost_dev *vdev)
 	struct spdk_vhost_user_dev *user_dev = to_user_dev(vdev);
 	struct spdk_vhost_session *vsession, *tmp_vsession;
 
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	if (user_dev->pending_async_op_num) {
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		return -EBUSY;
 	}
 
 	/* This is the case that uses RPC call `vhost_delete_controller` while VM is connected */
 	if (!TAILQ_EMPTY(&user_dev->vsessions) && g_vhost_user_started) {
 		SPDK_ERRLOG("Controller %s has still valid connection.\n", vdev->name);
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		return -EBUSY;
 	}
 
@@ -1848,7 +1849,7 @@ vhost_user_dev_unregister(struct spdk_vhost_dev *vdev)
 	}
 
 	user_dev->registered = false;
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 
 	/* There are no valid connections now, and it's not an error if the domain
 	 * socket was already removed by shutdown thread.
@@ -1856,7 +1857,7 @@ vhost_user_dev_unregister(struct spdk_vhost_dev *vdev)
 	vhost_driver_unregister(vdev->path);
 
 	spdk_thread_send_msg(vdev->thread, vhost_dev_thread_exit, NULL);
-	pthread_mutex_destroy(&user_dev->lock);
+	real_pthread_mutex_destroy(&user_dev->lock);
 
 	free(user_dev);
 	free(vdev->path);
@@ -1912,13 +1913,13 @@ vhost_user_session_shutdown(void *vhost_cb)
 	for (vdev = spdk_vhost_dev_next(NULL); vdev != NULL;
 	     vdev = spdk_vhost_dev_next(vdev)) {
 		user_dev = to_user_dev(vdev);
-		pthread_mutex_lock(&user_dev->lock);
+		real_pthread_mutex_lock(&user_dev->lock);
 		TAILQ_FOREACH(vsession, &user_dev->vsessions, tailq) {
 			if (vsession->started || vsession->starting) {
 				_stop_session(vsession);
 			}
 		}
-		pthread_mutex_unlock(&user_dev->lock);
+		real_pthread_mutex_unlock(&user_dev->lock);
 		vhost_driver_unregister(vdev->path);
 	}
 
@@ -1944,7 +1945,7 @@ vhost_user_fini(spdk_vhost_fini_cb vhost_cb)
 	 * ops for stopping a device or removing a connection, we need to call it from
 	 * a separate thread to avoid deadlock.
 	 */
-	rc = pthread_create(&tid, NULL, &vhost_user_session_shutdown, vhost_cb);
+	rc = real_pthread_create(&tid, NULL, &vhost_user_session_shutdown, vhost_cb);
 	if (rc < 0) {
 		SPDK_ERRLOG("Failed to start session shutdown thread (%d): %s\n", rc, spdk_strerror(rc));
 		abort();
@@ -1959,7 +1960,7 @@ vhost_session_info_json(struct spdk_vhost_dev *vdev, struct spdk_json_write_ctx 
 	struct spdk_vhost_user_dev *user_dev;
 
 	user_dev = to_user_dev(vdev);
-	pthread_mutex_lock(&user_dev->lock);
+	real_pthread_mutex_lock(&user_dev->lock);
 	TAILQ_FOREACH(vsession, &user_dev->vsessions, tailq) {
 		spdk_json_write_object_begin(w);
 		spdk_json_write_named_uint32(w, "vid", vsession->vid);
@@ -1970,5 +1971,5 @@ vhost_session_info_json(struct spdk_vhost_dev *vdev, struct spdk_json_write_ctx 
 		spdk_json_write_named_uint32(w, "inflight_task_cnt", vsession->task_cnt);
 		spdk_json_write_object_end(w);
 	}
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 }

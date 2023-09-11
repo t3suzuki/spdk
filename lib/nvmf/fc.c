@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2019 Intel Corporation.
  *   Copyright (c) 2018-2019 Broadcom.  All Rights Reserved.
@@ -443,7 +444,7 @@ nvmf_fc_assign_idlest_poll_group(struct spdk_nvmf_fc_hwqp *hwqp)
 	struct spdk_nvmf_fc_poll_group *fgroup;
 	struct spdk_nvmf_fc_poll_group *ret_fgroup = NULL;
 
-	pthread_mutex_lock(&g_nvmf_ftransport->lock);
+	real_pthread_mutex_lock(&g_nvmf_ftransport->lock);
 	/* find poll group with least number of hwqp's assigned to it */
 	TAILQ_FOREACH(fgroup, &g_nvmf_fgroups, link) {
 		if (fgroup->hwqp_count < max_count) {
@@ -458,7 +459,7 @@ nvmf_fc_assign_idlest_poll_group(struct spdk_nvmf_fc_hwqp *hwqp)
 		hwqp->fgroup = ret_fgroup;
 	}
 
-	pthread_mutex_unlock(&g_nvmf_ftransport->lock);
+	real_pthread_mutex_unlock(&g_nvmf_ftransport->lock);
 
 	return ret_fgroup;
 }
@@ -469,14 +470,14 @@ nvmf_fc_poll_group_valid(struct spdk_nvmf_fc_poll_group *fgroup)
 	struct spdk_nvmf_fc_poll_group *tmp;
 	bool rc = false;
 
-	pthread_mutex_lock(&g_nvmf_ftransport->lock);
+	real_pthread_mutex_lock(&g_nvmf_ftransport->lock);
 	TAILQ_FOREACH(tmp, &g_nvmf_fgroups, link) {
 		if (tmp == fgroup) {
 			rc = true;
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_nvmf_ftransport->lock);
+	real_pthread_mutex_unlock(&g_nvmf_ftransport->lock);
 	return rc;
 }
 
@@ -535,14 +536,14 @@ nvmf_fc_poll_group_remove_hwqp(struct spdk_nvmf_fc_hwqp *hwqp,
 	if (!hwqp->fgroup) {
 		SPDK_ERRLOG("HWQP (%d) not assigned to poll group\n", hwqp->hwqp_id);
 	} else {
-		pthread_mutex_lock(&g_nvmf_ftransport->lock);
+		real_pthread_mutex_lock(&g_nvmf_ftransport->lock);
 		TAILQ_FOREACH(tmp, &g_nvmf_fgroups, link) {
 			if (tmp == hwqp->fgroup) {
 				hwqp->fgroup->hwqp_count--;
 				break;
 			}
 		}
-		pthread_mutex_unlock(&g_nvmf_ftransport->lock);
+		real_pthread_mutex_unlock(&g_nvmf_ftransport->lock);
 
 		if (tmp != hwqp->fgroup) {
 			/* Pollgroup was already removed. Dont bother. */
@@ -1974,8 +1975,8 @@ nvmf_fc_create(struct spdk_nvmf_transport_opts *opts)
 		return NULL;
 	}
 
-	if (pthread_mutex_init(&g_nvmf_ftransport->lock, NULL)) {
-		SPDK_ERRLOG("pthread_mutex_init() failed\n");
+	if (real_pthread_mutex_init(&g_nvmf_ftransport->lock, NULL)) {
+		SPDK_ERRLOG("real_pthread_mutex_init() failed\n");
 		free(g_nvmf_ftransport);
 		g_nvmf_ftransport = NULL;
 		return NULL;
@@ -2093,10 +2094,10 @@ nvmf_fc_poll_group_create(struct spdk_nvmf_transport *transport,
 
 	TAILQ_INIT(&fgroup->hwqp_list);
 
-	pthread_mutex_lock(&ftransport->lock);
+	real_pthread_mutex_lock(&ftransport->lock);
 	TAILQ_INSERT_TAIL(&g_nvmf_fgroups, fgroup, link);
 	g_nvmf_fgroup_count++;
-	pthread_mutex_unlock(&ftransport->lock);
+	real_pthread_mutex_unlock(&ftransport->lock);
 
 	return &fgroup->group;
 }
@@ -2109,10 +2110,10 @@ nvmf_fc_poll_group_destroy(struct spdk_nvmf_transport_poll_group *group)
 		SPDK_CONTAINEROF(group->transport, struct spdk_nvmf_fc_transport, transport);
 
 	fgroup = SPDK_CONTAINEROF(group, struct spdk_nvmf_fc_poll_group, group);
-	pthread_mutex_lock(&ftransport->lock);
+	real_pthread_mutex_lock(&ftransport->lock);
 	TAILQ_REMOVE(&g_nvmf_fgroups, fgroup, link);
 	g_nvmf_fgroup_count--;
-	pthread_mutex_unlock(&ftransport->lock);
+	real_pthread_mutex_unlock(&ftransport->lock);
 
 	free(fgroup);
 }

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -137,7 +138,7 @@ mem_map_notify_walk(struct spdk_mem_map *map, enum spdk_mem_map_notify_action ac
 	}
 
 	/* Hold the memory registration map mutex so no new registrations can be added while we are looping. */
-	pthread_mutex_lock(&g_mem_reg_map->mutex);
+	real_pthread_mutex_lock(&g_mem_reg_map->mutex);
 
 	for (idx_256tb = 0;
 	     idx_256tb < sizeof(g_mem_reg_map->map_256tb.map) / sizeof(g_mem_reg_map->map_256tb.map[0]);
@@ -192,7 +193,7 @@ mem_map_notify_walk(struct spdk_mem_map *map, enum spdk_mem_map_notify_action ac
 		}
 	}
 
-	pthread_mutex_unlock(&g_mem_reg_map->mutex);
+	real_pthread_mutex_unlock(&g_mem_reg_map->mutex);
 	return 0;
 
 err_unregister:
@@ -247,7 +248,7 @@ err_unregister:
 		idx_1gb = sizeof(map_1gb->map) / sizeof(map_1gb->map[0]) - 1;
 	}
 
-	pthread_mutex_unlock(&g_mem_reg_map->mutex);
+	real_pthread_mutex_unlock(&g_mem_reg_map->mutex);
 	return rc;
 }
 
@@ -263,7 +264,7 @@ spdk_mem_map_alloc(uint64_t default_translation, const struct spdk_mem_map_ops *
 		return NULL;
 	}
 
-	if (pthread_mutex_init(&map->mutex, NULL)) {
+	if (real_pthread_mutex_init(&map->mutex, NULL)) {
 		free(map);
 		return NULL;
 	}
@@ -275,12 +276,12 @@ spdk_mem_map_alloc(uint64_t default_translation, const struct spdk_mem_map_ops *
 	}
 
 	if (ops && ops->notify_cb) {
-		pthread_mutex_lock(&g_spdk_mem_map_mutex);
+		real_pthread_mutex_lock(&g_spdk_mem_map_mutex);
 		rc = mem_map_notify_walk(map, SPDK_MEM_MAP_NOTIFY_REGISTER);
 		if (rc != 0) {
-			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+			real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			DEBUG_PRINT("Initial mem_map notify failed\n");
-			pthread_mutex_destroy(&map->mutex);
+			real_pthread_mutex_destroy(&map->mutex);
 			for (i = 0; i < sizeof(map->map_256tb.map) / sizeof(map->map_256tb.map[0]); i++) {
 				free(map->map_256tb.map[i]);
 			}
@@ -288,7 +289,7 @@ spdk_mem_map_alloc(uint64_t default_translation, const struct spdk_mem_map_ops *
 			return NULL;
 		}
 		TAILQ_INSERT_TAIL(&g_spdk_mem_maps, map, tailq);
-		pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+		real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 	}
 
 	return map;
@@ -311,17 +312,17 @@ spdk_mem_map_free(struct spdk_mem_map **pmap)
 	}
 
 	if (map->ops.notify_cb) {
-		pthread_mutex_lock(&g_spdk_mem_map_mutex);
+		real_pthread_mutex_lock(&g_spdk_mem_map_mutex);
 		mem_map_notify_walk(map, SPDK_MEM_MAP_NOTIFY_UNREGISTER);
 		TAILQ_REMOVE(&g_spdk_mem_maps, map, tailq);
-		pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+		real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 	}
 
 	for (i = 0; i < sizeof(map->map_256tb.map) / sizeof(map->map_256tb.map[0]); i++) {
 		free(map->map_256tb.map[i]);
 	}
 
-	pthread_mutex_destroy(&map->mutex);
+	real_pthread_mutex_destroy(&map->mutex);
 
 	free(map);
 	*pmap = NULL;
@@ -351,14 +352,14 @@ spdk_mem_register(void *vaddr, size_t len)
 		return 0;
 	}
 
-	pthread_mutex_lock(&g_spdk_mem_map_mutex);
+	real_pthread_mutex_lock(&g_spdk_mem_map_mutex);
 
 	seg_vaddr = vaddr;
 	seg_len = len;
 	while (seg_len > 0) {
 		reg = spdk_mem_map_translate(g_mem_reg_map, (uint64_t)seg_vaddr, NULL);
 		if (reg & REG_MAP_REGISTERED) {
-			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+			real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			return -EBUSY;
 		}
 		seg_vaddr += VALUE_2MB;
@@ -378,12 +379,12 @@ spdk_mem_register(void *vaddr, size_t len)
 	TAILQ_FOREACH(map, &g_spdk_mem_maps, tailq) {
 		rc = map->ops.notify_cb(map->cb_ctx, map, SPDK_MEM_MAP_NOTIFY_REGISTER, seg_vaddr, seg_len);
 		if (rc != 0) {
-			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+			real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			return rc;
 		}
 	}
 
-	pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+	real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 	return 0;
 }
 
@@ -407,7 +408,7 @@ spdk_mem_unregister(void *vaddr, size_t len)
 		return -EINVAL;
 	}
 
-	pthread_mutex_lock(&g_spdk_mem_map_mutex);
+	real_pthread_mutex_lock(&g_spdk_mem_map_mutex);
 
 	/* The first page must be a start of a region. Also check if it's
 	 * registered to make sure we don't return -ERANGE for non-registered
@@ -415,7 +416,7 @@ spdk_mem_unregister(void *vaddr, size_t len)
 	 */
 	reg = spdk_mem_map_translate(g_mem_reg_map, (uint64_t)vaddr, NULL);
 	if ((reg & REG_MAP_REGISTERED) && (reg & REG_MAP_NOTIFY_START) == 0) {
-		pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+		real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 		return -ERANGE;
 	}
 
@@ -424,7 +425,7 @@ spdk_mem_unregister(void *vaddr, size_t len)
 	while (seg_len > 0) {
 		reg = spdk_mem_map_translate(g_mem_reg_map, (uint64_t)seg_vaddr, NULL);
 		if ((reg & REG_MAP_REGISTERED) == 0) {
-			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+			real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			return -EINVAL;
 		}
 		seg_vaddr += VALUE_2MB;
@@ -436,7 +437,7 @@ spdk_mem_unregister(void *vaddr, size_t len)
 	 * otherwise we'd be unregistering only a part of a region.
 	 */
 	if ((newreg & REG_MAP_NOTIFY_START) == 0 && (newreg & REG_MAP_REGISTERED)) {
-		pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+		real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 		return -ERANGE;
 	}
 	seg_vaddr = vaddr;
@@ -450,7 +451,7 @@ spdk_mem_unregister(void *vaddr, size_t len)
 			TAILQ_FOREACH_REVERSE(map, &g_spdk_mem_maps, spdk_mem_map_head, tailq) {
 				rc = map->ops.notify_cb(map->cb_ctx, map, SPDK_MEM_MAP_NOTIFY_UNREGISTER, seg_vaddr, seg_len);
 				if (rc != 0) {
-					pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+					real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 					return rc;
 				}
 			}
@@ -469,13 +470,13 @@ spdk_mem_unregister(void *vaddr, size_t len)
 		TAILQ_FOREACH_REVERSE(map, &g_spdk_mem_maps, spdk_mem_map_head, tailq) {
 			rc = map->ops.notify_cb(map->cb_ctx, map, SPDK_MEM_MAP_NOTIFY_UNREGISTER, seg_vaddr, seg_len);
 			if (rc != 0) {
-				pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+				real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 				return rc;
 			}
 		}
 	}
 
-	pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+	real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 	return 0;
 }
 
@@ -502,7 +503,7 @@ spdk_mem_reserve(void *vaddr, size_t len)
 		return 0;
 	}
 
-	pthread_mutex_lock(&g_spdk_mem_map_mutex);
+	real_pthread_mutex_lock(&g_spdk_mem_map_mutex);
 
 	/* Check if any part of this range is already registered */
 	seg_vaddr = vaddr;
@@ -510,7 +511,7 @@ spdk_mem_reserve(void *vaddr, size_t len)
 	while (seg_len > 0) {
 		reg = spdk_mem_map_translate(g_mem_reg_map, (uint64_t)seg_vaddr, NULL);
 		if (reg & REG_MAP_REGISTERED) {
-			pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+			real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 			return -EBUSY;
 		}
 		seg_vaddr += VALUE_2MB;
@@ -526,7 +527,7 @@ spdk_mem_reserve(void *vaddr, size_t len)
 		spdk_mem_map_set_translation(map, (uint64_t)vaddr, len, map->default_translation);
 	}
 
-	pthread_mutex_unlock(&g_spdk_mem_map_mutex);
+	real_pthread_mutex_unlock(&g_spdk_mem_map_mutex);
 	return 0;
 }
 
@@ -544,7 +545,7 @@ mem_map_get_map_1gb(struct spdk_mem_map *map, uint64_t vfn_2mb)
 	map_1gb = map->map_256tb.map[idx_256tb];
 
 	if (!map_1gb) {
-		pthread_mutex_lock(&map->mutex);
+		real_pthread_mutex_lock(&map->mutex);
 
 		/* Recheck to make sure nobody else got the mutex first. */
 		map_1gb = map->map_256tb.map[idx_256tb];
@@ -559,7 +560,7 @@ mem_map_get_map_1gb(struct spdk_mem_map *map, uint64_t vfn_2mb)
 			}
 		}
 
-		pthread_mutex_unlock(&map->mutex);
+		real_pthread_mutex_unlock(&map->mutex);
 
 		if (!map_1gb) {
 			DEBUG_PRINT("allocation failed\n");
@@ -820,9 +821,9 @@ vtophys_iommu_map_dma(uint64_t vaddr, uint64_t iova, uint64_t size)
 		return 0;
 	}
 
-	pthread_mutex_lock(&g_vfio.mutex);
+	real_pthread_mutex_lock(&g_vfio.mutex);
 	ret = _vfio_iommu_map_dma(vaddr, iova, size);
-	pthread_mutex_unlock(&g_vfio.mutex);
+	real_pthread_mutex_unlock(&g_vfio.mutex);
 	if (ret) {
 		return ret;
 	}
@@ -836,9 +837,9 @@ vtophys_iommu_map_dma_bar(uint64_t vaddr, uint64_t iova, uint64_t size)
 {
 	int ret;
 
-	pthread_mutex_lock(&g_vfio.mutex);
+	real_pthread_mutex_lock(&g_vfio.mutex);
 	ret = _vfio_iommu_map_dma(vaddr, iova, size);
-	pthread_mutex_unlock(&g_vfio.mutex);
+	real_pthread_mutex_unlock(&g_vfio.mutex);
 
 	return ret;
 }
@@ -876,7 +877,7 @@ vtophys_iommu_unmap_dma(uint64_t iova, uint64_t size)
 	uint64_t refcount;
 	int ret;
 
-	pthread_mutex_lock(&g_vfio.mutex);
+	real_pthread_mutex_lock(&g_vfio.mutex);
 	TAILQ_FOREACH(dma_map, &g_vfio.maps, tailq) {
 		if (dma_map->map.iova == iova) {
 			break;
@@ -885,7 +886,7 @@ vtophys_iommu_unmap_dma(uint64_t iova, uint64_t size)
 
 	if (dma_map == NULL) {
 		DEBUG_PRINT("Cannot clear DMA mapping for IOVA %"PRIx64" - it's not mapped\n", iova);
-		pthread_mutex_unlock(&g_vfio.mutex);
+		real_pthread_mutex_unlock(&g_vfio.mutex);
 		return -ENXIO;
 	}
 
@@ -897,7 +898,7 @@ vtophys_iommu_unmap_dma(uint64_t iova, uint64_t size)
 
 	/* We still have outstanding references, don't clear it. */
 	if (refcount > 1) {
-		pthread_mutex_unlock(&g_vfio.mutex);
+		real_pthread_mutex_unlock(&g_vfio.mutex);
 		return 0;
 	}
 
@@ -905,7 +906,7 @@ vtophys_iommu_unmap_dma(uint64_t iova, uint64_t size)
 	assert(dma_map->map.size == size);
 
 	ret = _vfio_iommu_unmap_dma(dma_map);
-	pthread_mutex_unlock(&g_vfio.mutex);
+	real_pthread_mutex_unlock(&g_vfio.mutex);
 
 	return ret;
 }
@@ -916,7 +917,7 @@ vtophys_iommu_unmap_dma_bar(uint64_t vaddr)
 	struct spdk_vfio_dma_map *dma_map;
 	int ret;
 
-	pthread_mutex_lock(&g_vfio.mutex);
+	real_pthread_mutex_lock(&g_vfio.mutex);
 	TAILQ_FOREACH(dma_map, &g_vfio.maps, tailq) {
 		if (dma_map->map.vaddr == vaddr) {
 			break;
@@ -925,12 +926,12 @@ vtophys_iommu_unmap_dma_bar(uint64_t vaddr)
 
 	if (dma_map == NULL) {
 		DEBUG_PRINT("Cannot clear DMA mapping for address %"PRIx64" - it's not mapped\n", vaddr);
-		pthread_mutex_unlock(&g_vfio.mutex);
+		real_pthread_mutex_unlock(&g_vfio.mutex);
 		return -ENXIO;
 	}
 
 	ret = _vfio_iommu_unmap_dma(dma_map);
-	pthread_mutex_unlock(&g_vfio.mutex);
+	real_pthread_mutex_unlock(&g_vfio.mutex);
 	return ret;
 }
 #endif
@@ -1020,16 +1021,16 @@ vtophys_get_paddr_pci(uint64_t vaddr, size_t len)
 	uintptr_t paddr;
 	struct rte_pci_device	*dev;
 
-	pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
+	real_pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
 	TAILQ_FOREACH(vtophys_dev, &g_vtophys_pci_devices, tailq) {
 		dev = vtophys_dev->pci_device;
 		paddr = pci_device_vtophys(dev, vaddr, len);
 		if (paddr != SPDK_VTOPHYS_ERROR) {
-			pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
+			real_pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
 			return paddr;
 		}
 	}
-	pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
+	real_pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
 
 	return SPDK_VTOPHYS_ERROR;
 }
@@ -1372,7 +1373,7 @@ vtophys_pci_device_added(struct rte_pci_device *pci_device)
 {
 	struct spdk_vtophys_pci_device *vtophys_dev;
 
-	pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
+	real_pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
 
 	vtophys_dev = calloc(1, sizeof(*vtophys_dev));
 	if (vtophys_dev) {
@@ -1381,7 +1382,7 @@ vtophys_pci_device_added(struct rte_pci_device *pci_device)
 	} else {
 		DEBUG_PRINT("Memory allocation error\n");
 	}
-	pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
+	real_pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
 
 #if VFIO_ENABLED
 	struct spdk_vfio_dma_map *dma_map;
@@ -1391,10 +1392,10 @@ vtophys_pci_device_added(struct rte_pci_device *pci_device)
 		return;
 	}
 
-	pthread_mutex_lock(&g_vfio.mutex);
+	real_pthread_mutex_lock(&g_vfio.mutex);
 	g_vfio.device_ref++;
 	if (g_vfio.device_ref > 1) {
-		pthread_mutex_unlock(&g_vfio.mutex);
+		real_pthread_mutex_unlock(&g_vfio.mutex);
 		return;
 	}
 
@@ -1409,7 +1410,7 @@ vtophys_pci_device_added(struct rte_pci_device *pci_device)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_vfio.mutex);
+	real_pthread_mutex_unlock(&g_vfio.mutex);
 #endif
 }
 
@@ -1418,7 +1419,7 @@ vtophys_pci_device_removed(struct rte_pci_device *pci_device)
 {
 	struct spdk_vtophys_pci_device *vtophys_dev;
 
-	pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
+	real_pthread_mutex_lock(&g_vtophys_pci_devices_mutex);
 	TAILQ_FOREACH(vtophys_dev, &g_vtophys_pci_devices, tailq) {
 		if (vtophys_dev->pci_device == pci_device) {
 			TAILQ_REMOVE(&g_vtophys_pci_devices, vtophys_dev, tailq);
@@ -1426,7 +1427,7 @@ vtophys_pci_device_removed(struct rte_pci_device *pci_device)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
+	real_pthread_mutex_unlock(&g_vtophys_pci_devices_mutex);
 
 #if VFIO_ENABLED
 	struct spdk_vfio_dma_map *dma_map;
@@ -1436,11 +1437,11 @@ vtophys_pci_device_removed(struct rte_pci_device *pci_device)
 		return;
 	}
 
-	pthread_mutex_lock(&g_vfio.mutex);
+	real_pthread_mutex_lock(&g_vfio.mutex);
 	assert(g_vfio.device_ref > 0);
 	g_vfio.device_ref--;
 	if (g_vfio.device_ref > 0) {
-		pthread_mutex_unlock(&g_vfio.mutex);
+		real_pthread_mutex_unlock(&g_vfio.mutex);
 		return;
 	}
 
@@ -1462,7 +1463,7 @@ vtophys_pci_device_removed(struct rte_pci_device *pci_device)
 			break;
 		}
 	}
-	pthread_mutex_unlock(&g_vfio.mutex);
+	real_pthread_mutex_unlock(&g_vfio.mutex);
 #endif
 }
 

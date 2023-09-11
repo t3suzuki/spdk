@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2010-2016 Intel Corporation. All rights reserved.
  *   All rights reserved.
@@ -236,7 +237,7 @@ virtio_dev_construct(struct virtio_dev *vdev, const char *name,
 		return -ENOMEM;
 	}
 
-	rc = pthread_mutex_init(&vdev->mutex, NULL);
+	rc = real_pthread_mutex_init(&vdev->mutex, NULL);
 	if (rc != 0) {
 		free(vdev->name);
 		return -rc;
@@ -293,7 +294,7 @@ void
 virtio_dev_destruct(struct virtio_dev *dev)
 {
 	virtio_dev_backend_ops(dev)->destruct_dev(dev);
-	pthread_mutex_destroy(&dev->mutex);
+	real_pthread_mutex_destroy(&dev->mutex);
 	free(dev->name);
 }
 
@@ -539,15 +540,15 @@ virtio_dev_acquire_queue(struct virtio_dev *vdev, uint16_t index)
 		return -1;
 	}
 
-	pthread_mutex_lock(&vdev->mutex);
+	real_pthread_mutex_lock(&vdev->mutex);
 	vq = vdev->vqs[index];
 	if (vq == NULL || vq->owner_thread != NULL) {
-		pthread_mutex_unlock(&vdev->mutex);
+		real_pthread_mutex_unlock(&vdev->mutex);
 		return -1;
 	}
 
 	vq->owner_thread = spdk_get_thread();
-	pthread_mutex_unlock(&vdev->mutex);
+	real_pthread_mutex_unlock(&vdev->mutex);
 	return 0;
 }
 
@@ -557,7 +558,7 @@ virtio_dev_find_and_acquire_queue(struct virtio_dev *vdev, uint16_t start_index)
 	struct virtqueue *vq = NULL;
 	uint16_t i;
 
-	pthread_mutex_lock(&vdev->mutex);
+	real_pthread_mutex_lock(&vdev->mutex);
 	for (i = start_index; i < vdev->max_queues; ++i) {
 		vq = vdev->vqs[i];
 		if (vq != NULL && vq->owner_thread == NULL) {
@@ -567,12 +568,12 @@ virtio_dev_find_and_acquire_queue(struct virtio_dev *vdev, uint16_t start_index)
 
 	if (vq == NULL || i == vdev->max_queues) {
 		SPDK_ERRLOG("no more unused virtio queues with idx >= %"PRIu16".\n", start_index);
-		pthread_mutex_unlock(&vdev->mutex);
+		real_pthread_mutex_unlock(&vdev->mutex);
 		return -1;
 	}
 
 	vq->owner_thread = spdk_get_thread();
-	pthread_mutex_unlock(&vdev->mutex);
+	real_pthread_mutex_unlock(&vdev->mutex);
 	return i;
 }
 
@@ -587,9 +588,9 @@ virtio_dev_queue_get_thread(struct virtio_dev *vdev, uint16_t index)
 		abort(); /* This is not recoverable */
 	}
 
-	pthread_mutex_lock(&vdev->mutex);
+	real_pthread_mutex_lock(&vdev->mutex);
 	thread = vdev->vqs[index]->owner_thread;
-	pthread_mutex_unlock(&vdev->mutex);
+	real_pthread_mutex_unlock(&vdev->mutex);
 
 	return thread;
 }
@@ -611,17 +612,17 @@ virtio_dev_release_queue(struct virtio_dev *vdev, uint16_t index)
 		return;
 	}
 
-	pthread_mutex_lock(&vdev->mutex);
+	real_pthread_mutex_lock(&vdev->mutex);
 	vq = vdev->vqs[index];
 	if (vq == NULL) {
 		SPDK_ERRLOG("virtqueue at index %"PRIu16" is not initialized.\n", index);
-		pthread_mutex_unlock(&vdev->mutex);
+		real_pthread_mutex_unlock(&vdev->mutex);
 		return;
 	}
 
 	assert(vq->owner_thread == spdk_get_thread());
 	vq->owner_thread = NULL;
-	pthread_mutex_unlock(&vdev->mutex);
+	real_pthread_mutex_unlock(&vdev->mutex);
 }
 
 int

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2016 Intel Corporation. All rights reserved.
  *   Copyright (c) 2019 Mellanox Technologies LTD. All rights reserved.
@@ -150,13 +151,13 @@ spdk_fio_poll_ctrlrs(void *arg)
 				    rc, spdk_strerror(rc));
 		}
 
-		pthread_mutex_lock(&g_mutex);
+		real_pthread_mutex_lock(&g_mutex);
 
 		TAILQ_FOREACH(fio_ctrlr, &g_ctrlrs, link) {
 			spdk_nvme_ctrlr_process_admin_completions(fio_ctrlr->ctrlr);
 		}
 
-		pthread_mutex_unlock(&g_mutex);
+		real_pthread_mutex_unlock(&g_mutex);
 
 		rc = pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
 		if (rc != 0) {
@@ -324,7 +325,7 @@ attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
 		}
 	}
 
-	pthread_mutex_lock(&g_mutex);
+	real_pthread_mutex_lock(&g_mutex);
 	fio_ctrlr = get_fio_ctrlr(trid);
 	/* it is a new ctrlr and needs to be added */
 	if (!fio_ctrlr) {
@@ -333,7 +334,7 @@ attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
 		if (!fio_ctrlr) {
 			SPDK_ERRLOG("Cannot allocate space for fio_ctrlr\n");
 			g_error = true;
-			pthread_mutex_unlock(&g_mutex);
+			real_pthread_mutex_unlock(&g_mutex);
 			return;
 		}
 		fio_ctrlr->opts = *opts;
@@ -341,7 +342,7 @@ attach_cb(void *cb_ctx, const struct spdk_nvme_transport_id *trid,
 		fio_ctrlr->tr_id = *trid;
 		TAILQ_INSERT_TAIL(&g_ctrlrs, fio_ctrlr, link);
 	}
-	pthread_mutex_unlock(&g_mutex);
+	real_pthread_mutex_unlock(&g_mutex);
 
 	ns = spdk_nvme_ctrlr_get_ns(fio_ctrlr->ctrlr, ns_id);
 	if (ns == NULL) {
@@ -550,7 +551,7 @@ spdk_fio_setup(struct thread_data *td)
 		return 1;
 	}
 
-	pthread_mutex_lock(&g_mutex);
+	real_pthread_mutex_lock(&g_mutex);
 
 	fio_thread = calloc(1, sizeof(*fio_thread));
 	assert(fio_thread != NULL);
@@ -582,7 +583,7 @@ spdk_fio_setup(struct thread_data *td)
 			free(fio_thread->iocq);
 			free(fio_thread);
 			fio_thread = NULL;
-			pthread_mutex_unlock(&g_mutex);
+			real_pthread_mutex_unlock(&g_mutex);
 			return 1;
 		}
 
@@ -605,7 +606,7 @@ spdk_fio_setup(struct thread_data *td)
 		spdk_unaffinitize_thread();
 
 		/* Spawn a thread to continue polling the controllers */
-		rc = pthread_create(&g_ctrlr_thread_id, NULL, &spdk_fio_poll_ctrlrs, NULL);
+		rc = real_pthread_create(&g_ctrlr_thread_id, NULL, &spdk_fio_poll_ctrlrs, NULL);
 		if (rc != 0) {
 			SPDK_ERRLOG("Unable to spawn a thread to poll admin queues. They won't be polled.\n");
 		}
@@ -614,7 +615,7 @@ spdk_fio_setup(struct thread_data *td)
 			SPDK_ERRLOG("Failed to initialize VMD. Some NVMe devices can be unavailable.\n");
 		}
 	}
-	pthread_mutex_unlock(&g_mutex);
+	real_pthread_mutex_unlock(&g_mutex);
 
 	for_each_file(td, f, i) {
 		memset(&trid, 0, sizeof(trid));
@@ -657,9 +658,9 @@ spdk_fio_setup(struct thread_data *td)
 
 		fio_thread->current_f = f;
 
-		pthread_mutex_lock(&g_mutex);
+		real_pthread_mutex_lock(&g_mutex);
 		fio_ctrlr = get_fio_ctrlr(&trid);
-		pthread_mutex_unlock(&g_mutex);
+		real_pthread_mutex_unlock(&g_mutex);
 		if (fio_ctrlr) {
 			attach_cb(td, &trid, fio_ctrlr->ctrlr, &fio_ctrlr->opts);
 		} else {
@@ -677,9 +678,9 @@ spdk_fio_setup(struct thread_data *td)
 		}
 	}
 
-	pthread_mutex_lock(&g_mutex);
+	real_pthread_mutex_lock(&g_mutex);
 	g_td_count++;
-	pthread_mutex_unlock(&g_mutex);
+	real_pthread_mutex_unlock(&g_mutex);
 
 	return rc;
 }
@@ -1525,7 +1526,7 @@ spdk_fio_cleanup(struct thread_data *td)
 	free(fio_thread->iocq);
 	free(fio_thread);
 
-	pthread_mutex_lock(&g_mutex);
+	real_pthread_mutex_lock(&g_mutex);
 	g_td_count--;
 	if (g_td_count == 0) {
 		struct spdk_fio_ctrlr	*fio_ctrlr, *fio_ctrlr_tmp;
@@ -1545,10 +1546,10 @@ spdk_fio_cleanup(struct thread_data *td)
 			spdk_vmd_fini();
 		}
 	}
-	pthread_mutex_unlock(&g_mutex);
+	real_pthread_mutex_unlock(&g_mutex);
 	if (TAILQ_EMPTY(&g_ctrlrs)) {
 		if (pthread_cancel(g_ctrlr_thread_id) == 0) {
-			pthread_join(g_ctrlr_thread_id, NULL);
+			real_pthread_join(g_ctrlr_thread_id, NULL);
 		}
 	}
 }

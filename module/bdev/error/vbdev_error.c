@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation.
  *   All rights reserved.
@@ -94,12 +95,12 @@ vbdev_error_inject_error(char *name, const struct vbdev_error_inject_opts *opts)
 		}
 	}
 
-	pthread_mutex_lock(&g_vbdev_error_mutex);
+	real_pthread_mutex_lock(&g_vbdev_error_mutex);
 
 	rc = spdk_bdev_open_ext(name, false, dummy_bdev_event_cb, NULL, &desc);
 	if (rc != 0) {
 		SPDK_ERRLOG("Could not open ErrorInjection bdev %s\n", name);
-		pthread_mutex_unlock(&g_vbdev_error_mutex);
+		real_pthread_mutex_unlock(&g_vbdev_error_mutex);
 		return rc;
 	}
 
@@ -140,7 +141,7 @@ vbdev_error_inject_error(char *name, const struct vbdev_error_inject_opts *opts)
 
 exit:
 	spdk_bdev_close(desc);
-	pthread_mutex_unlock(&g_vbdev_error_mutex);
+	real_pthread_mutex_unlock(&g_vbdev_error_mutex);
 	return rc;
 }
 

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation. All rights reserved.
  *   All rights reserved.
@@ -1420,7 +1421,7 @@ destroy_session_poller_cb(void *arg)
 	struct spdk_scsi_dev_session_state *state;
 	uint32_t i;
 
-	if (vsession->task_cnt > 0 || (pthread_mutex_trylock(&user_dev->lock) != 0)) {
+	if (vsession->task_cnt > 0 || (real_pthread_mutex_trylock(&user_dev->lock) != 0)) {
 		assert(vsession->stop_retry_count > 0);
 		vsession->stop_retry_count--;
 		if (vsession->stop_retry_count == 0) {
@@ -1469,7 +1470,7 @@ destroy_session_poller_cb(void *arg)
 	spdk_poller_unregister(&svsession->stop_poller);
 	vhost_user_session_stop_done(vsession, 0);
 
-	pthread_mutex_unlock(&user_dev->lock);
+	real_pthread_mutex_unlock(&user_dev->lock);
 	return SPDK_POLLER_BUSY;
 }
 

@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2022 Intel Corporation.
  *   Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES.
@@ -71,13 +72,13 @@ idxd_select_device(struct idxd_io_channel *chan)
 	 */
 	do {
 		/* select next device */
-		pthread_mutex_lock(&g_dev_lock);
+		real_pthread_mutex_lock(&g_dev_lock);
 		g_next_dev = TAILQ_NEXT(g_next_dev, tailq);
 		if (g_next_dev == NULL) {
 			g_next_dev = TAILQ_FIRST(&g_dsa_devices);
 		}
 		dev = g_next_dev;
-		pthread_mutex_unlock(&g_dev_lock);
+		real_pthread_mutex_unlock(&g_dev_lock);
 
 		if (socket_id != spdk_idxd_get_socket(dev->dsa)) {
 			continue;

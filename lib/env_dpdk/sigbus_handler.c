@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2020 Intel Corporation.
  *   All rights reserved.
@@ -23,11 +24,11 @@ sigbus_fault_sighandler(int signum, siginfo_t *info, void *ctx)
 {
 	struct sigbus_handler *sigbus_handler;
 
-	pthread_mutex_lock(&g_sighandler_mutex);
+	real_pthread_mutex_lock(&g_sighandler_mutex);
 	TAILQ_FOREACH(sigbus_handler, &g_sigbus_handler, tailq) {
 		sigbus_handler->func(info->si_addr, sigbus_handler->ctx);
 	}
-	pthread_mutex_unlock(&g_sighandler_mutex);
+	real_pthread_mutex_unlock(&g_sighandler_mutex);
 }
 
 __attribute__((constructor)) static void
@@ -61,15 +62,15 @@ spdk_pci_register_error_handler(spdk_pci_error_handler sighandler, void *ctx)
 		return -EINVAL;
 	}
 
-	pthread_mutex_lock(&g_sighandler_mutex);
+	real_pthread_mutex_lock(&g_sighandler_mutex);
 	TAILQ_FOREACH(sigbus_handler, &g_sigbus_handler, tailq) {
 		if (sigbus_handler->func == sighandler) {
-			pthread_mutex_unlock(&g_sighandler_mutex);
+			real_pthread_mutex_unlock(&g_sighandler_mutex);
 			SPDK_ERRLOG("Error handler has been registered\n");
 			return -EINVAL;
 		}
 	}
-	pthread_mutex_unlock(&g_sighandler_mutex);
+	real_pthread_mutex_unlock(&g_sighandler_mutex);
 
 	sigbus_handler = calloc(1, sizeof(*sigbus_handler));
 	if (!sigbus_handler) {
@@ -80,9 +81,9 @@ spdk_pci_register_error_handler(spdk_pci_error_handler sighandler, void *ctx)
 	sigbus_handler->func = sighandler;
 	sigbus_handler->ctx = ctx;
 
-	pthread_mutex_lock(&g_sighandler_mutex);
+	real_pthread_mutex_lock(&g_sighandler_mutex);
 	TAILQ_INSERT_TAIL(&g_sigbus_handler, sigbus_handler, tailq);
-	pthread_mutex_unlock(&g_sighandler_mutex);
+	real_pthread_mutex_unlock(&g_sighandler_mutex);
 
 	return 0;
 }
@@ -96,14 +97,14 @@ spdk_pci_unregister_error_handler(spdk_pci_error_handler sighandler)
 		return;
 	}
 
-	pthread_mutex_lock(&g_sighandler_mutex);
+	real_pthread_mutex_lock(&g_sighandler_mutex);
 	TAILQ_FOREACH(sigbus_handler, &g_sigbus_handler, tailq) {
 		if (sigbus_handler->func == sighandler) {
 			TAILQ_REMOVE(&g_sigbus_handler, sigbus_handler, tailq);
 			free(sigbus_handler);
-			pthread_mutex_unlock(&g_sighandler_mutex);
+			real_pthread_mutex_unlock(&g_sighandler_mutex);
 			return;
 		}
 	}
-	pthread_mutex_unlock(&g_sighandler_mutex);
+	real_pthread_mutex_unlock(&g_sighandler_mutex);
 }

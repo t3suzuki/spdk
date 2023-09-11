@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2015 Intel Corporation.
  *   All rights reserved.
@@ -1820,9 +1821,9 @@ work_fn(void *arg)
 	}
 
 	if (g_dump_transport_stats) {
-		pthread_mutex_lock(&g_stats_mutex);
+		real_pthread_mutex_lock(&g_stats_mutex);
 		perf_dump_transport_statistics(worker);
-		pthread_mutex_unlock(&g_stats_mutex);
+		real_pthread_mutex_unlock(&g_stats_mutex);
 	}
 
 	/* drain the io of each ns_ctx in round robin to make the fairness */
@@ -3183,7 +3184,7 @@ main(int argc, char **argv)
 	}
 	/* Transport statistics are printed from each thread.
 	 * To avoid mess in terminal, init and use mutex */
-	rc = pthread_mutex_init(&g_stats_mutex, NULL);
+	rc = real_pthread_mutex_init(&g_stats_mutex, NULL);
 	if (rc != 0) {
 		fprintf(stderr, "Failed to init mutex\n");
 		free(g_psk);
@@ -3192,7 +3193,7 @@ main(int argc, char **argv)
 	if (spdk_env_init(&opts) < 0) {
 		fprintf(stderr, "Unable to initialize SPDK env\n");
 		unregister_trids();
-		pthread_mutex_destroy(&g_stats_mutex);
+		real_pthread_mutex_destroy(&g_stats_mutex);
 		free(g_psk);
 		return -1;
 	}
@@ -3236,7 +3237,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "Error suppression count may not be exact.\n");
 	}
 
-	rc = pthread_create(&thread_id, NULL, &nvme_poll_ctrlrs, NULL);
+	rc = real_pthread_create(&thread_id, NULL, &nvme_poll_ctrlrs, NULL);
 	if (rc != 0) {
 		fprintf(stderr, "Unable to spawn a thread to poll admin queues.\n");
 		goto cleanup;
@@ -3278,7 +3279,7 @@ main(int argc, char **argv)
 
 cleanup:
 	if (thread_id && pthread_cancel(thread_id) == 0) {
-		pthread_join(thread_id, NULL);
+		real_pthread_join(thread_id, NULL);
 	}
 
 	/* Collect errors from all workers and namespaces */
@@ -3304,7 +3305,7 @@ cleanup:
 
 	free(g_psk);
 
-	pthread_mutex_destroy(&g_stats_mutex);
+	real_pthread_mutex_destroy(&g_stats_mutex);
 
 	if (rc != 0) {
 		fprintf(stderr, "%s: errors occurred\n", argv[0]);

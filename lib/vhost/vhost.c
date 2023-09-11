@@ -1,3 +1,4 @@
+#include "spdk_internal/real_pthread.h"
 /*   SPDX-License-Identifier: BSD-3-Clause
  *   Copyright (C) 2017 Intel Corporation. All rights reserved.
  *   All rights reserved.
@@ -235,19 +236,19 @@ spdk_vhost_get_coalescing(struct spdk_vhost_dev *vdev, uint32_t *delay_base_us,
 void
 spdk_vhost_lock(void)
 {
-	pthread_mutex_lock(&g_vhost_mutex);
+	real_pthread_mutex_lock(&g_vhost_mutex);
 }
 
 int
 spdk_vhost_trylock(void)
 {
-	return -pthread_mutex_trylock(&g_vhost_mutex);
+	return -real_pthread_mutex_trylock(&g_vhost_mutex);
 }
 
 void
 spdk_vhost_unlock(void)
 {
-	pthread_mutex_unlock(&g_vhost_mutex);
+	real_pthread_mutex_unlock(&g_vhost_mutex);
 }
 
 void
