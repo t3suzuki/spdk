@@ -4,3 +4,6 @@
 [submodule "isa-l-crypto"]
 	path = isa-l-crypto
 	url = https://github.com/intel/isa-l_crypto
+[submodule "dpdk"]
+	path = dpdk
+	url = https://github.com/t3suzuki/dpdk
